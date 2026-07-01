@@ -24,7 +24,9 @@ namespace WarzoneHelper.Core.Screen
         // Lines whose (letters-only) form contains any of these are UI chrome, not a player.
         private static readonly string[] Chrome =
         {
-            "inviteplayer", "invite", "party", "yoursquad", "online", "viewallfriends", "friends"
+            "inviteplayer", "invite", "party", "yoursquad", "online", "viewallfriends", "friends",
+            "weekly", "daily", "rewards", "challenge", "viewall", "available", "tokens", "foes",
+            "battlepass", "operators", "searching", "spectating"
         };
 
         private static readonly Regex LeadingLevel = new Regex(@"^\D{0,3}(\d{1,4})\D", RegexOptions.Compiled);
@@ -56,6 +58,11 @@ namespace WarzoneHelper.Core.Screen
 
                 var name = CleanName(rest);
                 if (name.Length < 3 || !HasName.IsMatch(name)) continue;       // no real name -> skip
+
+                // Reject all-caps UI headers (e.g. "WEEKLY REWARDS", "VIEW ALL FRIENDS"): real
+                // usernames have a lowercase letter, a digit, or a clan tag.
+                if (!name.Any(char.IsLower) && !name.Any(char.IsDigit) && !name.Contains('['))
+                    continue;
 
                 // Identity key is LETTERS-ONLY so frame-to-frame digit jitter (status dots, online
                 // counts) doesn't make an otherwise-stable member look like it changed.
