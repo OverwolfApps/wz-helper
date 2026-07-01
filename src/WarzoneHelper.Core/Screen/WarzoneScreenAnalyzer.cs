@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Text.RegularExpressions;
 using WarzoneHelper.Core.Config;
 
@@ -13,7 +14,10 @@ namespace WarzoneHelper.Core.Screen
         public bool? DeployBannerVisible;
         public string LobbyId;
         public string[] ChatLines;    // OCR'd in-game chat lines (in-match only)
-        public string[] PartyLines;   // OCR'd lobby party-list lines (lobby only)
+        public string[] PartyLines;   // OCR'd player-list lines (party or match/lobby list)
+        public bool PartyIsMatchList; // true when the player list is the large match/lobby list
+        public string SpectatingName; // player currently being spectated (id stripped)
+        public string SpectatingId;   // the #NNNN suffix, if read
     }
 
     /// <summary>
@@ -25,7 +29,13 @@ namespace WarzoneHelper.Core.Screen
     {
         private readonly ScreenRegions _regions;
         private readonly IOcrEngine _ocr;
-        private static readonly Regex LobbyIdRegex = new Regex(@"\d{6,}", RegexOptions.Compiled);
+        // Real Warzone lobby/session ids are ~19 digits; require 17-20 to reject HUD numbers.
+        private static readonly Regex LobbyIdRegex = new Regex(@"\d{17,20}", RegexOptions.Compiled);
+        // "SPECTATING: Kazu_15#4138899" — capture name and the #id suffix.
+        private static readonly Regex SpectateRegex = new Regex(
+            @"([A-Za-z0-9_\-\[\] ]{3,})#(\d{3,})", RegexOptions.Compiled);
+        // Below this crop size Tesseract/leptonica prints "Image too small to scale!!" to stderr.
+        private const int MinOcrPx = 8;
 
         public WarzoneScreenAnalyzer(ScreenRegions regions, IOcrEngine ocr)
         {
@@ -42,29 +52,34 @@ namespace WarzoneHelper.Core.Screen
             s.DeathBannerVisible = DetectReddishBanner(frame, _regions.DeathBanner, minRatio: 0.10);
             s.DeployBannerVisible = DetectBrightBanner(frame, _regions.DeployBanner, minRatio: 0.25);
 
-            if (_ocr.Available)
+            // Skip all OCR for undersized frames (e.g. loading), which otherwise trip Tesseract's
+            // "Image too small to scale" errors and produce garbage.
+            if (_ocr.Available && frame.Width >= 320 && frame.Height >= 240)
             {
-                using (var crop = Crop(frame, _regions.LobbyId))
+                var lobbyText = ReadRegion(frame, _regions.LobbyId, "0123456789", singleLine: true);
+                if (lobbyText != null)
                 {
-                    var text = _ocr.Read(crop, whitelist: "0123456789");
-                    if (text != null)
-                    {
-                        var m = LobbyIdRegex.Match(text);
-                        if (m.Success) s.LobbyId = m.Value;
-                    }
+                    var digits = new string(lobbyText.Where(char.IsDigit).ToArray());
+                    var m = LobbyIdRegex.Match(digits);
+                    if (m.Success) s.LobbyId = m.Value;   // only ~19-digit ids pass
                 }
 
                 if (inMatch)
                 {
-                    // Chat only exists in-match / preparing; OCR the chat region.
-                    using (var crop = Crop(frame, _regions.Chat))
-                        s.ChatLines = CleanChat(_ocr.Read(crop, whitelist: null, singleLine: false));
+                    // Chat overlay (upper-right) -> grouped into messages by ChatParser.
+                    s.ChatLines = SplitLines(ReadRegion(frame, _regions.Chat, null, singleLine: false));
+                    // In a match the player list is the bottom-left squad panel.
+                    s.PartyLines = SplitLines(ReadRegion(frame, _regions.InGameSquad, null, singleLine: false));
+                    // Spectating panel (bottom-center) when dead.
+                    var spec = ReadRegion(frame, _regions.Spectating, null, singleLine: false);
+                    var sm = spec != null ? SpectateRegex.Match(spec) : Match.Empty;
+                    if (sm.Success) { s.SpectatingName = sm.Groups[1].Value.Trim(); s.SpectatingId = sm.Groups[2].Value; }
                 }
                 else
                 {
-                    // In the lobby there is no chat, but the party list (top-right) is worth reading.
-                    using (var crop = Crop(frame, _regions.Party))
-                        s.PartyLines = CleanChat(_ocr.Read(crop, whitelist: null, singleLine: false));
+                    // Lobby: top-right panel. Many members => the full match/lobby list, not your party.
+                    s.PartyLines = SplitLines(ReadRegion(frame, _regions.Party, null, singleLine: false));
+                    s.PartyIsMatchList = (s.PartyLines?.Length ?? 0) > 8;
                 }
             }
             return s;
@@ -80,6 +95,15 @@ namespace WarzoneHelper.Core.Screen
         }
 
         private static Bitmap Crop(Bitmap b, double[] r) => b.Clone(ToRect(b, r), b.PixelFormat);
+
+        /// <summary>Crop + OCR a region, skipping crops too small for Tesseract to avoid its stderr spam.</summary>
+        private string ReadRegion(Bitmap frame, double[] region, string whitelist, bool singleLine)
+        {
+            var rect = ToRect(frame, region);
+            if (rect.Width < MinOcrPx || rect.Height < MinOcrPx) return null;
+            using (var crop = frame.Clone(rect, frame.PixelFormat))
+                return _ocr.Read(crop, whitelist, singleLine);
+        }
 
         /// <summary>Health bar: fraction of the bar width that is "filled" (bright, non-dark) pixels.</summary>
         private static double EstimateHealth(Bitmap b, double[] region)
@@ -129,21 +153,14 @@ namespace WarzoneHelper.Core.Screen
             return count > 0 && (double)bright / count >= minRatio;
         }
 
-        /// <summary>Split OCR output into trimmed, non-trivial chat lines. Drops obvious noise.</summary>
-        private static string[] CleanChat(string text)
+        /// <summary>Split OCR output into trimmed, non-empty lines. Cleaning is left to the parsers.</summary>
+        private static string[] SplitLines(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
-            var lines = new System.Collections.Generic.List<string>();
-            foreach (var raw in text.Split('\n'))
-            {
-                var line = raw.Trim();
-                if (line.Length < 2) continue;                 // stray single chars
-                int letters = 0;
-                foreach (var c in line) if (char.IsLetterOrDigit(c)) letters++;
-                if (letters < 2) continue;                     // punctuation-only garbage
-                lines.Add(line);
-            }
-            return lines.ToArray();
+            return text.Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => l.Length > 0 && l.Any(char.IsLetterOrDigit))
+                .ToArray();
         }
 
         private static int Clamp(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);

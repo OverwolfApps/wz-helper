@@ -43,6 +43,7 @@ namespace WarzoneHelper.Core.Monitors
         private string _pendingPartyKey;
         private int _partyStable;
         private const int PartyStableFrames = 2;
+        private string _lastSpectateKey;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -117,15 +118,15 @@ namespace WarzoneHelper.Core.Monitors
                     .With("lobbyId", s.LobbyId).With("previous", prev));
             }
 
-            // Chat: emit each newly-seen line once (OCR is noisy and scrolls).
-            if (s.ChatLines != null)
+            // Chat: parse OCR lines into "[CHANNEL] name" + body messages, emit each once.
+            if (s.ChatLines != null && s.ChatLines.Length > 0)
             {
-                foreach (var line in s.ChatLines)
+                foreach (var msg in ChatParser.Parse(s.ChatLines))
                 {
-                    var key = Normalize(line);
-                    if (key.Length == 0 || _recentChatSet.Contains(key)) continue;
-                    RememberChat(key);
-                    _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e => e.With("text", line));
+                    if (_recentChatSet.Contains(msg.Key)) continue;
+                    RememberChat(msg.Key);
+                    _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e => e
+                        .With("channel", msg.Channel).With("name", msg.Name).With("text", msg.Text));
                 }
             }
 
@@ -144,8 +145,22 @@ namespace WarzoneHelper.Core.Monitors
                     _lastPartyKey = key;
                     var payload = members.Select(m => new Dictionary<string, object> {
                         { "name", m.Name }, { "level", m.Level } }).ToArray();
-                    _bus.Publish(EventNames.PartyListChanged, EventSource.ScreenCv, e => e
+                    // A large top-right list is the full match/lobby roster, not your party.
+                    var name = s.PartyIsMatchList ? EventNames.MatchListChanged : EventNames.PartyListChanged;
+                    _bus.Publish(name, EventSource.ScreenCv, e => e
                         .With("members", payload).With("count", payload.Length));
+                }
+            }
+
+            // Spectating (when dead): emit on change of spectated player.
+            if (!string.IsNullOrEmpty(s.SpectatingName))
+            {
+                var specKey = Normalize(s.SpectatingName) + s.SpectatingId;
+                if (specKey != _lastSpectateKey)
+                {
+                    _lastSpectateKey = specKey;
+                    _bus.Publish(EventNames.SpectatingPlayer, EventSource.ScreenCv, e => e
+                        .With("name", s.SpectatingName).With("id", s.SpectatingId));
                 }
             }
         }

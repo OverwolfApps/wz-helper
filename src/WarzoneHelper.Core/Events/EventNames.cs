@@ -37,6 +37,8 @@ namespace WarzoneHelper.Core.Events
         public const string LobbyIdChanged = "LOBBY_ID_CHANGED";
         public const string ChatMessage = "CHAT_MESSAGE";
         public const string PartyListChanged = "PARTY_LIST_CHANGED";
+        public const string MatchListChanged = "MATCH_LIST_CHANGED";
+        public const string SpectatingPlayer = "SPECTATING_PLAYER";
     }
 
     /// <summary>Where an event was derived from, so consumers can weigh reliability.</summary>

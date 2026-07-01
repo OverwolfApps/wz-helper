@@ -168,11 +168,15 @@ namespace WarzoneHelper.Core.Config
         public double[] DeployBanner { get; set; } = { 0.30, 0.40, 0.40, 0.20 };
         // Death / "You were killed by" banner, upper-center.
         public double[] DeathBanner { get; set; } = { 0.25, 0.12, 0.50, 0.14 };
-        // Lobby ID text, bottom-left corner.
-        public double[] LobbyId { get; set; } = { 0.005, 0.955, 0.20, 0.035 };
-        // In-game chat, right-middle of the screen skewed toward the top.
-        public double[] Chat { get; set; } = { 0.58, 0.26, 0.40, 0.30 };
-        // Party list in the lobby, top-right corner (names + levels). Tune per resolution.
-        public double[] Party { get; set; } = { 0.66, 0.11, 0.33, 0.38 };
+        // Lobby ID text, bottom-left corner (a ~19-digit session id).
+        public double[] LobbyId { get; set; } = { 0.0, 0.95, 0.26, 0.045 };
+        // In-game chat: upper-right stack of "[CHANNEL] name / message" lines.
+        public double[] Chat { get; set; } = { 0.70, 0.12, 0.30, 0.28 };
+        // Lobby player panel, top-right (small = your PARTY, large = full MATCH/lobby list).
+        public double[] Party { get; set; } = { 0.66, 0.11, 0.33, 0.55 };
+        // In-match squad panel, bottom-left (teammates + cash).
+        public double[] InGameSquad { get; set; } = { 0.0, 0.60, 0.22, 0.36 };
+        // "SPECTATING: name#id" panel, bottom-center (when dead/spectating).
+        public double[] Spectating { get; set; } = { 0.36, 0.70, 0.28, 0.11 };
     }
 }
