@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Warzone Helper — overlay</title>
+  <style>
+    body { margin:0; font-family:'Segoe UI',sans-serif; color:#fff; }
+    #hud { background:rgba(12,14,20,.72); border:1px solid rgba(90,160,255,.3);
+           border-radius:10px; padding:10px 12px; margin:8px; width:396px; }
+    .line { display:flex; justify-content:space-between; font-size:12.5px; padding:2px 0; }
+    .k { color:#8b93a7; } .v { font-weight:600; }
+    .v.game { color:#48d597; } .v.dead { color:#ff5a6a; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="line"><span class="k">Server</span><span class="v game" id="server">—</span></div>
+    <div class="line"><span class="k">Ping</span><span class="v" id="ping">—</span></div>
+    <div class="line"><span class="k">Health</span><span class="v" id="health">—</span></div>
+    <div class="line"><span class="k">Lobby</span><span class="v" id="lobby">—</span></div>
+  </div>
+  <script src="../js/in_game.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Normalize line endings; let Git decide text vs binary by default.
+* text=auto
+
+# Source & config: LF in the repo.
+*.cs        text eol=lf diff=csharp
+*.csproj    text eol=lf
+*.slnx      text eol=lf
+*.props     text eol=lf
+*.targets   text eol=lf
+*.json      text eol=lf
+*.js        text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.md        text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Solution files are CRLF by convention.
+*.sln       text eol=crlf merge=union
+
+# Binary assets — never munge.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.ico       binary
+*.dll       binary
+*.exe       binary
+*.pdb       binary
+*.mmdb      binary
+*.traineddata binary
+*.opk       binary
+*.7z        binary
+*.zip       binary
+
+# Collapse noisy generated files in diffs/reviews.
+*.csv       -diff

@@ -1,0 +1,15 @@
+{
+  "_comment": "Loaded by the plugin from beside the DLL. SelfCapture is false here because the Overwolf app pushes in-memory screenshots via plugin.pushFrame (works in exclusive fullscreen). Set true for standalone/console use.",
+  "GameProcessNames": ["cod", "cod.exe"],
+  "SelfCapture": false,
+  "EnableNetwork": true,
+  "EnableLogWatch": true,
+  "EnableStatusApi": true,
+  "EnableScreen": true,
+  "NetworkPollMs": 1000,
+  "ScreenPollMs": 1000,
+  "StatusPollMs": 60000,
+  "AutoDownloadGeoDb": true,
+  "GeoDbDir": "%LOCALAPPDATA%\\WarzoneHelper\\geoip",
+  "TesseractDataDir": "%LOCALAPPDATA%\\WarzoneHelper\\tessdata"
+}

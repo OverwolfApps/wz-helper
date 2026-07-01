@@ -1,0 +1,50 @@
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# ---- NuGet ----
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ---- Staged plugin binaries (produced by build.ps1 into app/plugins) ----
+# These are build artifacts copied from src/WarzoneHelper.Plugin/bin. Rebuild with build.ps1.
+app/plugins/*.dll
+app/plugins/*.pdb
+app/plugins/x64/
+app/plugins/x86/
+app/plugins/amd64/
+# ...but keep the checked-in config template.
+!app/plugins/config.json
+
+# ---- Runtime data (downloaded on demand, never committed) ----
+*.mmdb
+*.traineddata
+tessdata/
+geoip/
+status_cache.json
+
+# ---- Packaged app ----
+*.opk
+
+# ---- OS / editor cruft ----
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~
