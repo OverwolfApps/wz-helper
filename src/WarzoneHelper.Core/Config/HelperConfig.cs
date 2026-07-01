@@ -82,9 +82,28 @@ namespace WarzoneHelper.Core.Config
         public bool EnableNetwork { get; set; } = true;
         public bool EnableLogWatch { get; set; } = true;
 
+        // --- Standalone event logging (console/scheduled-task host) ---
+        /// <summary>Events are appended here as newline-delimited JSON. Empty/null disables file logging.
+        /// Supports the tokens {unixtime} (seconds since epoch at startup) and {pid}.</summary>
+        public string EventLogFile { get; set; } = "%TEMP%\\WarzoneHelper\\events_{unixtime}.ndjson";
+        /// <summary>Diagnostic [log] lines file. Defaults to EventLogFile with a .log extension when null.</summary>
+        public string DiagLogFile { get; set; } = null;
+        /// <summary>Rotate a log file once it exceeds this size (MB). 0 = never rotate.</summary>
+        public int LogRotateMB { get; set; } = 20;
+
         public static string Expand(string path)
         {
             return string.IsNullOrEmpty(path) ? path : Environment.ExpandEnvironmentVariables(path);
+        }
+
+        /// <summary>Expand env vars plus the {unixtime}/{pid} tokens (used for per-run log file names).</summary>
+        public static string ExpandTokens(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            expanded = expanded.Replace("{unixtime}", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
+            expanded = expanded.Replace("{pid}", System.Diagnostics.Process.GetCurrentProcess().Id.ToString());
+            return expanded;
         }
 
         public IEnumerable<string> ExpandedWatchPaths()
