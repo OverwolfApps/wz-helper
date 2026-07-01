@@ -13,10 +13,6 @@
   },
   "permissions": [
     "GameInfo",
-    "Extensions",
-    "FileSystem",
-    "Media",
-    "Screenshot",
     "Web",
     "Tray"
   ],
@@ -54,14 +50,8 @@
       "game_ids": [27860]
     },
     "game_events": [27860],
-    "extra-objects": {
-      "warzone-helper": {
-        "file": "plugins/WarzoneHelper.Plugin.dll",
-        "class": "overwolf.plugins.warzonehelper.WarzoneHelperPlugin"
-      }
-    },
     "externally_connectable": {
-      "matches": ["https://raw.githubusercontent.com", "https://prod-psapi.infra-ext.activision.com"]
+      "matches": ["ws://127.0.0.1", "http://127.0.0.1"]
     },
     "protocol_override_domains": {},
     "force_browser": "user"

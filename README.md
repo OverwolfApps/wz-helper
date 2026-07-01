@@ -1,8 +1,17 @@
 # Warzone Helper
 
-An Overwolf app + native .NET plugin that watches Call of Duty: Warzone from four angles and
-dispatches structured events. Everything lives in a shared **`WarzoneHelper.Core`** library; the
-Overwolf plugin and a standalone console runner are thin hosts over it.
+Watches Call of Duty: Warzone from four angles and dispatches structured events. All logic lives in
+a shared **`WarzoneHelper.Core`** library.
+
+**Architecture (agent + UI):** a standalone **`WarzoneHelper.Console.exe`** runs in the background as
+an **elevated scheduled task** — it does all the work, including the ETW UDP game-server detection
+that *requires admin*, and hosts a **WebSocket server** on `ws://127.0.0.1:17999`. The **Overwolf
+app is a pure WebSocket client** with no native code: it connects to the agent, renders the event
+stream, and relays Overwolf GEP hints back over the same socket. This sidesteps the fact that
+Overwolf itself runs unelevated (so an in-process plugin could never start the ETW trace).
+
+> A native Overwolf plugin (`WarzoneHelper.Plugin`) that hosts Core in-process still exists in the
+> repo as an optional/legacy path, but the app no longer loads it.
 
 ## What it does
 
@@ -55,17 +64,42 @@ This builds everything and copies `WarzoneHelper.Plugin.dll` + its dependencies 
 MaxMind.Db, TraceEvent, Tesseract + native libs) into `app/plugins`, unblocking them so Overwolf
 will load them.
 
-## Run in Overwolf
+## Running it
 
-1. Overwolf → **Settings → Support → Development → Load unpacked extension** → pick `wz-helper/app`.
-2. Launch **Warzone Helper**. The background window loads the plugin, starts all monitors, wires
-   GEP, and opens the desktop dashboard. In fullscreen the app pushes Overwolf in-memory
-   screenshots (`overwolf.media.getScreenshotUrl`) into the plugin for CV — this works in
-   exclusive fullscreen where a raw GDI grab would be black.
-3. For UDP game-server detection, run Overwolf as administrator.
+### 1. Start the agent (elevated, background)
 
-Plugin config is `app/plugins/config.json` (loaded from beside the DLL). It ships with
-`SelfCapture=false` because the app supplies frames.
+The agent must run **elevated** for ETW UDP detection. Register it once as a scheduled task with
+highest privileges, then it starts prompt-free (a desktop shortcut / `Start-ScheduledTask` triggers it):
+
+```powershell
+$exe = "$PWD\src\WarzoneHelper.Console\bin\Release\net48\WarzoneHelper.Console.exe"
+$action    = New-ScheduledTaskAction -Execute $exe -WorkingDirectory (Split-Path $exe)
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
+Register-ScheduledTask -TaskName "WarzoneHelper-Console" -Action $action -Principal $principal -Force  # once, elevated
+Start-ScheduledTask   -TaskName "WarzoneHelper-Console"
+```
+
+The agent hosts the WebSocket server on `ws://127.0.0.1:17999` and writes a durable event log to
+`%TEMP%\WarzoneHelper\events_{unixtime}.ndjson` (see below). Without elevation everything still
+works except UDP game-server IPs.
+
+### 2. Load the Overwolf app (UI only)
+
+Overwolf → **Settings → Support → Development → Load unpacked extension** → pick `wz-helper/app`.
+Launch **Warzone Helper**: the background window connects to the agent over WebSocket, opens the
+desktop dashboard, and relays GEP hints back. If the agent isn't running the header shows
+"agent offline" and the app auto-reconnects every few seconds. **Overwolf does not need to be
+elevated** — the agent already is.
+
+### WebSocket protocol
+
+Text frames, one JSON object each. Configure via `EnableWebSocket` / `WebSocketHost` / `WebSocketPort`.
+
+| Direction | Message |
+|-----------|---------|
+| agent → client | the `HelperEvent` JSON, verbatim |
+| client → agent | `{"type":"hello"}` → agent replies with a backlog of recent events |
+| client → agent | `{"type":"gep","name":"match_start","data":"..."}` → relayed into the stream as a hint |
 
 ## Run standalone (no Overwolf)
 
@@ -77,9 +111,18 @@ Plugin config is `app/plugins/config.json` (loaded from beside the DLL). It ship
 ```
 
 The console prints one JSON event object per line to **stdout** and logs to **stderr**, so it pipes
-cleanly into other tools. `SelfCapture` defaults to `true` here (the plugin GDI-captures the game
-window itself). The same logic is reachable as `WarzoneHelper.Core.ConsoleRunner.Run(string[])` for
-a generic managed DLL runner.
+cleanly into other tools. It **also** appends events to a durable log file by default (important
+when run headless as a scheduled task, where no console is attached):
+
+- Events → `%TEMP%\WarzoneHelper\events_{unixtime}.ndjson` (newline-delimited JSON; a fresh file per run)
+- Diagnostics → sibling `events_{unixtime}.log`
+- Files rotate to `…_{unixtime}.1.ndjson` past `LogRotateMB` (default 20 MB).
+- Path supports the `{unixtime}` and `{pid}` tokens.
+
+Override with `--logfile <path>`, disable with `--no-logfile`; or set `EventLogFile` / `DiagLogFile`
+/ `LogRotateMB` in config. `--quiet` silences stderr `[log]` lines but keeps writing them to the file.
+The agent GDI-captures the game window itself (`SelfCapture=true`). The same logic is reachable as
+`WarzoneHelper.Core.ConsoleRunner.Run(string[])` for a generic managed DLL runner.
 
 ## Event shape
 

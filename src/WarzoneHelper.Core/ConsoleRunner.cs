@@ -61,11 +61,22 @@ namespace WarzoneHelper.Core
                 }
             }
 
+            // WebSocket server: the agent streams events to the Overwolf app UI and takes GEP hints back.
+            WarzoneHelper.Core.Net.EventWebSocketServer ws = null;
+            if (cfg.EnableWebSocket)
+            {
+                ws = new WarzoneHelper.Core.Net.EventWebSocketServer(
+                    cfg.WebSocketHost, cfg.WebSocketPort, core.Bus.Log,
+                    (name, data) => core.ReportGepEvent(name, data));
+                ws.Start();
+            }
+
             core.Bus.OnEvent += evt =>
             {
                 var json = evt.ToJson();
                 Console.Out.WriteLine(json);
                 events?.WriteLine(json);
+                ws?.Broadcast(json);
             };
             core.Bus.OnLog += msg =>
             {
@@ -81,6 +92,7 @@ namespace WarzoneHelper.Core
             core.Start();
             stop.Wait();
             core.Stop();
+            ws?.Dispose();
             events?.Dispose();
             diag?.Dispose();
             return 0;

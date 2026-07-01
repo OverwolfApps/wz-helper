@@ -27,7 +27,14 @@ document.getElementById('close').onclick = () =>
 // Receive events broadcast by the background controller.
 overwolf.windows.onMessageReceived.addListener((msg) => {
   if (msg.id === 'helper-event') render(msg.content);
+  else if (msg.id === 'agent-status') setAgentStatus(msg.content.connected);
 });
+
+function setAgentStatus(connected) {
+  const h = document.querySelector('header h1');
+  if (h) h.textContent = connected ? '🎯 Warzone Helper' : '🎯 Warzone Helper — agent offline';
+  if (!connected && els.game) els.game.textContent = 'agent offline';
+}
 
 // On open, backfill from the background ring buffer.
 overwolf.windows.getMainWindow && backfill();

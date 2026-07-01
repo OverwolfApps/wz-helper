@@ -82,6 +82,11 @@ namespace WarzoneHelper.Core.Config
         public bool EnableNetwork { get; set; } = true;
         public bool EnableLogWatch { get; set; } = true;
 
+        // --- WebSocket server (agent -> Overwolf app UI) ---
+        public bool EnableWebSocket { get; set; } = true;
+        public string WebSocketHost { get; set; } = "127.0.0.1";
+        public int WebSocketPort { get; set; } = 17999;
+
         // --- Standalone event logging (console/scheduled-task host) ---
         /// <summary>Events are appended here as newline-delimited JSON. Empty/null disables file logging.
         /// Supports the tokens {unixtime} (seconds since epoch at startup) and {pid}.</summary>
