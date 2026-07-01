@@ -50,7 +50,7 @@
     },
     "game_events": [27860],
     "externally_connectable": {
-      "matches": ["ws://127.0.0.1", "http://127.0.0.1"]
+      "matches": ["ws://127.0.0.1", "http://127.0.0.1", "https://flagcdn.com"]
     },
     "protocol_override_domains": {},
     "force_browser": "user"

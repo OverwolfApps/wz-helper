@@ -107,12 +107,20 @@ function render(entry) {
   while (els.log.children.length > 500) els.log.removeChild(els.log.lastChild);
 }
 
+// Windows Chromium (Overwolf CEF) has no color flag-emoji font, so we use flagcdn images.
+function flagImg(iso) {
+  if (!iso || iso.length !== 2) return '';
+  return `<img class="flag" src="https://flagcdn.com/20x15/${iso.toLowerCase()}.png" alt="${iso}" onerror="this.replaceWith('${iso} ')">`;
+}
+
 function summarize(name, d) {
   if (!d) return '';
   if (name.startsWith('GAME_SERVER') || name.startsWith('SERVICE')) {
     const geo = [d.city, d.countryIso].filter(Boolean).join(', ');
     const vpn = d.isLikelyVPN ? `⚠VPN?(${d.vpnReason})` : '';
-    return `${d.ip}:${d.port} ${d.protocol} ${geo} ${d.pingMs>=0?d.pingMs+'ms':''} ${d.bytesPerSec?d.bytesPerSec+'B/s':''} ${d.asnOrg||''} ${vpn}`;
+    const ping = d.pingMs >= 0 ? `${d.pingMs}ms` : 'ping n/a';
+    const rate = d.bytesPerSec ? `${d.bytesPerSec}B/s` : '';
+    return `${flagImg(d.countryIso)}${d.ip}:${d.port} ${d.protocol} ${geo} ${ping} ${rate} ${d.asnOrg||''} ${vpn}`;
   }
   if (name === 'CHAT_MESSAGE') return `💬 [${d.channel}] ${d.name}: ${d.text}`;
   if (name === 'PARTY_LIST_CHANGED' || name === 'MATCH_LIST_CHANGED')
@@ -130,8 +138,10 @@ function updateSummary(name, d) {
     case 'COD_PROCESS_STARTED': els.game.textContent = 'running'; break;
     case 'COD_PROCESS_STOPPED': els.game.textContent = 'closed'; break;
     case 'GAME_SERVER_CONNECTED':
-      els.server.textContent = `${d.city || d.countryIso || d.ip}${d.isLikelyVPN?' ⚠':''}`;
-      els.ping.textContent = d.pingMs>=0 ? `${d.pingMs} ms` : (d.bytesPerSec?`${d.bytesPerSec} B/s`:'—'); break;
+      els.server.innerHTML = `${flagImg(d.countryIso)}${d.city || d.countryIso || d.ip}${d.isLikelyVPN?' ⚠':''}`;
+      // Game servers block ICMP, so ping is usually n/a; show throughput as a secondary signal.
+      els.ping.textContent = d.pingMs >= 0 ? `${d.pingMs} ms`
+        : (d.bytesPerSec ? `n/a · ${d.bytesPerSec} B/s` : 'n/a'); break;
     case 'GAME_SERVER_DISCONNECTED': els.server.textContent = '—'; els.ping.textContent = '—'; break;
     case 'HEALTH_CHANGED': els.health.textContent = `${Math.round((d.health||0)*100)}%`; break;
     case 'PLAYER_DEAD': els.health.textContent = 'DEAD'; break;
