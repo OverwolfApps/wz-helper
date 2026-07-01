@@ -65,25 +65,14 @@ namespace WarzoneHelper.Core.Screen
             var pids = new HashSet<int>(_pids?.Invoke() ?? Array.Empty<int>());
             if (pids.Count == 0) return IntPtr.Zero;
 
-            // Fast path: foreground window belongs to the game.
+            // Only capture when the game window is actually topmost (foreground). We deliberately do
+            // NOT fall back to the game's MainWindowHandle: CopyFromScreen grabs whatever is at those
+            // screen coordinates, so an unfocused game would make us OCR the desktop / other apps and
+            // emit garbage chat/HUD events.
             var fg = GetForegroundWindow();
-            if (fg != IntPtr.Zero && IsWindowVisible(fg))
-            {
-                GetWindowThreadProcessId(fg, out var fpid);
-                if (pids.Contains((int)fpid)) return fg;
-            }
-
-            // Fallback: main window handle of a tracked process.
-            foreach (var pid in pids)
-            {
-                try
-                {
-                    using (var p = Process.GetProcessById(pid))
-                        if (p.MainWindowHandle != IntPtr.Zero) return p.MainWindowHandle;
-                }
-                catch { }
-            }
-            return IntPtr.Zero;
+            if (fg == IntPtr.Zero || !IsWindowVisible(fg)) return IntPtr.Zero;
+            GetWindowThreadProcessId(fg, out var fpid);
+            return pids.Contains((int)fpid) ? fg : IntPtr.Zero;
         }
 
         public void Dispose() { }

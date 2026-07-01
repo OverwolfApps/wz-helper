@@ -22,6 +22,7 @@ namespace WarzoneHelper.Core.Monitors
         private readonly WarzoneScreenAnalyzer _analyzer;
         private Timer _timer;
         private int _busy;
+        private bool? _wasCapturing;
 
         // Prior state for change detection
         private double? _lastHealth;
@@ -57,10 +58,13 @@ namespace WarzoneHelper.Core.Monitors
             if (Interlocked.Exchange(ref _busy, 1) == 1) return; // skip if previous frame still processing
             try
             {
-                if (!_proc.IsRunning) { Reset(); return; }
+                if (!_proc.IsRunning) { SetCapturing(false); Reset(); return; }
                 using (var frame = _source.Capture())
                 {
-                    if (frame?.Bitmap == null) return;
+                    // Null frame = game not topmost/visible. Analyze (and OCR) only when we have a
+                    // real game frame, so we never read the desktop or other apps.
+                    if (frame?.Bitmap == null) { SetCapturing(false); return; }
+                    SetCapturing(true);
                     var s = _analyzer.Analyze(frame.Bitmap);
                     Evaluate(s);
                 }
@@ -133,6 +137,15 @@ namespace WarzoneHelper.Core.Monitors
                 _recentChat.RemoveFirst();
                 _recentChatSet.Remove(first);
             }
+        }
+
+        private void SetCapturing(bool active)
+        {
+            if (_wasCapturing == active) return;
+            _wasCapturing = active;
+            _bus.Log(active
+                ? "[screen] game is foreground — CV active"
+                : "[screen] game not foreground — CV idle (no capture/OCR)");
         }
 
         private void Reset()
