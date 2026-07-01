@@ -25,6 +25,10 @@ namespace WarzoneHelper.Core.Monitors
         private readonly ProcessTracker _proc;
         private readonly IUdpPeerSource _udp;
         private readonly HomeLocator _home;
+        private readonly MatchState _match;
+
+        // ETW aggregates UDP peers over a rolling ~6s window; use that to turn window bytes into a rate.
+        private const double UdpWindowSeconds = 6.0;
 
         private Timer _timer;
 
@@ -37,6 +41,9 @@ namespace WarzoneHelper.Core.Monitors
             public int MissedPolls;
             public bool Announced;
             public bool IsGameServer;
+            public long BytesSent;
+            public long BytesRecv;
+            public readonly DateTime FirstSeenUtc = DateTime.UtcNow;
         }
 
         private readonly Dictionary<string, Tracked> _tracked = new Dictionary<string, Tracked>();
@@ -44,9 +51,9 @@ namespace WarzoneHelper.Core.Monitors
         public string Name => "network";
 
         public NetworkMonitor(HelperConfig cfg, EventBus bus, GeoIpResolver geo,
-            ProcessTracker proc, IUdpPeerSource udp, HomeLocator home)
+            ProcessTracker proc, IUdpPeerSource udp, HomeLocator home, MatchState match)
         {
-            _cfg = cfg; _bus = bus; _geo = geo; _proc = proc; _udp = udp; _home = home;
+            _cfg = cfg; _bus = bus; _geo = geo; _proc = proc; _udp = udp; _home = home; _match = match;
         }
 
         public void Start()
@@ -83,7 +90,7 @@ namespace WarzoneHelper.Core.Monitors
                     var key = $"UDP:{peer.RemoteAddress}:{peer.RemotePort}";
                     current.Add(key);
                     Touch(key, peer.RemoteAddress, peer.RemotePort, "UDP", isGameCandidate: gamePort,
-                        bytes: peer.BytesSent + peer.BytesRecv);
+                        sent: peer.BytesSent, recv: peer.BytesRecv);
                 }
 
                 // --- TCP peers (backend services) ---
@@ -95,7 +102,7 @@ namespace WarzoneHelper.Core.Monitors
                     if (c.State != "ESTABLISHED") continue;
                     var key = $"TCP:{c.RemoteAddress}:{c.RemotePort}";
                     current.Add(key);
-                    Touch(key, c.RemoteAddress, c.RemotePort, "TCP", isGameCandidate: false, bytes: 0);
+                    Touch(key, c.RemoteAddress, c.RemotePort, "TCP", isGameCandidate: false, sent: 0, recv: 0);
                 }
 
                 Sweep(current);
@@ -103,7 +110,7 @@ namespace WarzoneHelper.Core.Monitors
             catch (Exception ex) { _bus.Log($"[network] poll error: {ex.Message}"); }
         }
 
-        private void Touch(string key, string ip, int port, string proto, bool isGameCandidate, long bytes)
+        private void Touch(string key, string ip, int port, string proto, bool isGameCandidate, long sent, long recv)
         {
             if (!_tracked.TryGetValue(key, out var t))
             {
@@ -112,25 +119,34 @@ namespace WarzoneHelper.Core.Monitors
             }
             t.MissedPolls = 0;
             t.SeenPolls++;
+            t.BytesSent = sent;
+            t.BytesRecv = recv;
 
             if (t.Announced) return;
 
             if (proto == "UDP" && isGameCandidate)
             {
-                // Confirm only after it persists, to avoid flagging matchmaking probes.
-                if (t.SeenPolls >= _cfg.GameServerConfirmPolls)
+                // Promote to game server only once it persists, has enough throughput, and (optionally)
+                // we believe we're in a match. These filters exist because lobby/matchmaking traffic
+                // also uses game ports — they need tuning against real in-match captures.
+                bool persisted = t.SeenPolls >= _cfg.GameServerConfirmPolls;
+                bool throughputOk = _cfg.GameServerMinBytesPerSec <= 0 ||
+                                    (t.BytesSent + t.BytesRecv) / UdpWindowSeconds >= _cfg.GameServerMinBytesPerSec;
+                bool matchOk = !_cfg.GameServerRequireInMatch || (_match != null && _match.InMatch);
+
+                if (persisted && throughputOk && matchOk)
                 {
                     t.IsGameServer = true;
-                    Announce(t, connected: true, bytes: bytes);
+                    Announce(t, connected: true);
                 }
             }
             else if (proto == "TCP")
             {
-                Announce(t, connected: true, bytes: 0);
+                Announce(t, connected: true);
             }
         }
 
-        private void Announce(Tracked t, bool connected, long bytes)
+        private void Announce(Tracked t, bool connected)
         {
             t.Announced = connected;
             var geo = _geo?.Resolve(t.Ip);
@@ -152,16 +168,22 @@ namespace WarzoneHelper.Core.Monitors
             bool tooFar = distanceKm.HasValue && distanceKm.Value >= _cfg.VpnDistanceKmThreshold;
             bool isLikelyVpn = t.IsGameServer && (highPing || tooFar);
 
+            long totalBytes = t.BytesSent + t.BytesRecv;
             var evt = new HelperEvent(name, EventSource.Network)
                 .With("ip", t.Ip)
                 .With("port", t.Port)
                 .With("protocol", t.Proto)
                 .With("isGameServer", t.IsGameServer)
+                .With("inMatch", _match != null && _match.InMatch)
                 .With("pingMs", ping)
                 .With("distanceKm", distanceKm)
                 .With("isLikelyVPN", isLikelyVpn)
                 .With("vpnReason", isLikelyVpn ? (highPing && tooFar ? "ping+distance" : highPing ? "ping" : "distance") : null)
-                .With("bytes", bytes);
+                .With("bytes", totalBytes)
+                .With("bytesSent", t.BytesSent)
+                .With("bytesRecv", t.BytesRecv)
+                .With("bytesPerSec", (long)(totalBytes / UdpWindowSeconds))
+                .With("secondsTracked", Math.Round((DateTime.UtcNow - t.FirstSeenUtc).TotalSeconds, 1));
 
             if (geo != null)
                 foreach (var kv in geo.ToDict()) evt.With(kv.Key, kv.Value);
@@ -178,7 +200,7 @@ namespace WarzoneHelper.Core.Monitors
                 kv.Value.MissedPolls++;
                 if (kv.Value.MissedPolls >= _cfg.GameServerDropPolls)
                 {
-                    if (kv.Value.Announced) Announce(kv.Value, connected: false, bytes: 0);
+                    if (kv.Value.Announced) Announce(kv.Value, connected: false);
                     drop.Add(kv.Key);
                 }
             }
@@ -188,7 +210,7 @@ namespace WarzoneHelper.Core.Monitors
         private void SweepAll()
         {
             foreach (var kv in _tracked.ToList())
-                if (kv.Value.Announced) Announce(kv.Value, connected: false, bytes: 0);
+                if (kv.Value.Announced) Announce(kv.Value, connected: false);
             _tracked.Clear();
         }
 

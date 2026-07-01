@@ -44,6 +44,14 @@ namespace WarzoneHelper.Core.Config
         public bool ResolvePing { get; set; } = true;
         public int PingTimeoutMs { get; set; } = 800;
 
+        // --- Game-server classification filters (tune once real match data is captured) ---
+        /// <summary>Only promote a UDP peer to a game server while we believe we're in a match.
+        /// Off by default so lobby/matchmaking candidates are still recorded for analysis.</summary>
+        public bool GameServerRequireInMatch { get; set; } = false;
+        /// <summary>Minimum sustained UDP throughput (bytes/sec, both directions) to qualify as a
+        /// game server. 0 = disabled. Real gameplay is a continuous stream; lobby traffic is bursty.</summary>
+        public int GameServerMinBytesPerSec { get; set; } = 0;
+
         // --- VPN / proxy heuristics for game servers ---
         /// <summary>Ping at/above this (ms) flags a server as likely VPN/proxied routing.</summary>
         public int VpnPingThresholdMs { get; set; } = 130;

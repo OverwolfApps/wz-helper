@@ -22,6 +22,7 @@ namespace WarzoneHelper.Core
         private GeoIpResolver _geo;
         private ProcessTracker _proc;
         private PushedFrameSource _pushedSource;
+        private readonly MatchState _match = new MatchState();
         private bool _running;
 
         public EventBus Bus => _bus;
@@ -35,6 +36,10 @@ namespace WarzoneHelper.Core
             _running = true;
 
             _bus.Publish(EventNames.HelperStarted, "core", e => e.With("version", "1.0.0"));
+
+            // Derive coarse match state from our own CV events + GEP hints, so the NetworkMonitor can
+            // stamp/filter game-server events by whether we're actually in a match.
+            _bus.OnEvent += UpdateMatchState;
 
             // GeoIP (shared)
             _geo = new GeoIpResolver();
@@ -53,7 +58,7 @@ namespace WarzoneHelper.Core
                 try { home.Resolve(_cfg.HomeLatitude, _cfg.HomeLongitude, _cfg.AutoResolveHome, _cfg.PublicIpUrl, _geo, _bus.Log); }
                 catch (Exception ex) { _bus.Log($"[home] {ex.Message}"); }
                 IUdpPeerSource udp = TryCreateEtw();
-                _monitors.Add(new NetworkMonitor(_cfg, _bus, _geo, _proc, udp, home));
+                _monitors.Add(new NetworkMonitor(_cfg, _bus, _geo, _proc, udp, home, _match));
             }
 
             if (_cfg.EnableStatusApi) _monitors.Add(new StatusApiMonitor(_cfg, _bus));
@@ -92,6 +97,30 @@ namespace WarzoneHelper.Core
         {
             try { return new TesseractOcrEngine(_cfg.ExpandedTessDir(), _bus.Log); }
             catch (Exception ex) { _bus.Log($"[ocr] init failed: {ex.Message}"); return new NullOcrEngine(); }
+        }
+
+        private void UpdateMatchState(HelperEvent evt)
+        {
+            switch (evt.Name)
+            {
+                case EventNames.MatchStarted:
+                case EventNames.Deployed:
+                    _match.Set(true);
+                    break;
+                case EventNames.MatchEnded:
+                case EventNames.CodProcessStopped:
+                    _match.Set(false);
+                    break;
+                case EventNames.SceneChanged:
+                    // GEP scene value arrives as the "raw" payload (e.g. "in_game", "lobby_wz").
+                    if (evt.Data != null && evt.Data.TryGetValue("raw", out var raw) && raw != null)
+                    {
+                        var scene = raw.ToString();
+                        if (scene.IndexOf("in_game", StringComparison.OrdinalIgnoreCase) >= 0) _match.Set(true);
+                        else if (scene.IndexOf("lobby", StringComparison.OrdinalIgnoreCase) >= 0) _match.Set(false);
+                    }
+                    break;
+            }
         }
 
         /// <summary>Feed an externally captured frame (Overwolf in-memory screenshot bytes).</summary>
