@@ -45,6 +45,9 @@ namespace WarzoneHelper.Core.Monitors
         private const int PartyStableFrames = 2;
         private string _lastSpectateKey;
         private DateTime _lastPerfEmit = DateTime.MinValue;
+        private string _pendingLobbyId;
+        private int _lobbyStable;
+        private const int LobbyStableFrames = 3;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -110,13 +113,20 @@ namespace WarzoneHelper.Core.Monitors
                 _bus.Publish(EventNames.Deployed, EventSource.ScreenCv);
             _lastDeploy = deploy;
 
-            // Lobby ID
-            if (!string.IsNullOrEmpty(s.LobbyId) && s.LobbyId != _lastLobbyId)
+            // Lobby ID — OCR flips a digit between frames (e.g. 59.. vs 55..), so only accept a value
+            // that reads identically for several consecutive frames before emitting a change.
+            if (!string.IsNullOrEmpty(s.LobbyId))
             {
-                var prev = _lastLobbyId;
-                _lastLobbyId = s.LobbyId;
-                _bus.Publish(EventNames.LobbyIdChanged, EventSource.ScreenCv, e => e
-                    .With("lobbyId", s.LobbyId).With("previous", prev));
+                if (s.LobbyId == _pendingLobbyId) _lobbyStable++;
+                else { _pendingLobbyId = s.LobbyId; _lobbyStable = 1; }
+
+                if (_lobbyStable == LobbyStableFrames && s.LobbyId != _lastLobbyId)
+                {
+                    var prev = _lastLobbyId;
+                    _lastLobbyId = s.LobbyId;
+                    _bus.Publish(EventNames.LobbyIdChanged, EventSource.ScreenCv, e => e
+                        .With("lobbyId", s.LobbyId).With("previous", prev));
+                }
             }
 
             // Chat: parse OCR lines into "[CHANNEL] name" + body messages, emit each once.
