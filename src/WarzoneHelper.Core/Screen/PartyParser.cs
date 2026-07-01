@@ -45,14 +45,14 @@ namespace WarzoneHelper.Core.Screen
                 if (lettersOnly.Length < 3) continue;                          // punctuation/garbage
                 if (Chrome.Any(c => lettersOnly.Contains(c))) continue;         // UI chrome
 
-                int? level = null;
+                // A real party/squad row starts with the player's level. Require a valid level in
+                // [1,1000] — this rejects OCR junk and UI text (e.g. "SEARCHING FOR PLAYERS") that
+                // has no leading level number.
                 var m = LeadingLevel.Match(line);
-                var rest = line;
-                if (m.Success)
-                {
-                    if (int.TryParse(m.Groups[1].Value, out var lv) && lv > 0 && lv <= 9999) level = lv;
-                    rest = line.Substring(m.Index + m.Length - 1); // keep the char after the level
-                }
+                if (!m.Success || !int.TryParse(m.Groups[1].Value, out var lv) || lv < 1 || lv > 1000)
+                    continue;
+                int? level = lv;
+                var rest = line.Substring(m.Index + m.Length - 1); // keep the char after the level
 
                 var name = CleanName(rest);
                 if (name.Length < 3 || !HasName.IsMatch(name)) continue;       // no real name -> skip
