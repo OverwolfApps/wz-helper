@@ -67,9 +67,15 @@ namespace WarzoneHelper.Core.Screen
             return result;
         }
 
+        private static readonly Regex TrailingJunk = new Regex(@"\s+\p{L}{1,2}$", RegexOptions.Compiled);
+
         private static string CleanName(string s)
         {
-            s = s.Trim();
+            s = (s ?? "").Trim();
+            // Rows read as "<emblem-noise> [Tag] Name <icon-noise>". If a clan tag is near the start,
+            // anchor the name at it so the rank-emblem OCR garbage (e.g. "ff,", "3K,") is dropped.
+            int br = s.IndexOf('[');
+            if (br > 0 && br <= 6) s = s.Substring(br);
             // Trim leading junk up to the first letter or '['.
             int start = 0;
             while (start < s.Length && !(char.IsLetter(s[start]) || s[start] == '[')) start++;
@@ -77,8 +83,11 @@ namespace WarzoneHelper.Core.Screen
             int end = s.Length - 1;
             while (end >= 0 && !(char.IsLetterOrDigit(s[end]) || s[end] == ']')) end--;
             if (end < start) return "";
-            var name = s.Substring(start, end - start + 1).Trim();
-            return Regex.Replace(name, @"\s{2,}", " "); // collapse runs of spaces
+            var name = Regex.Replace(s.Substring(start, end - start + 1).Trim(), @"\s{2,}", " ");
+            // Drop a leading emblem remnant: a 1-2 letter token followed by a comma (e.g. "K, her again").
+            name = Regex.Replace(name, @"^\p{L}{1,2},\s*", "");
+            // Strip a trailing 1-2 letter token (platform/icon OCR bleed), e.g. "... genuuug re".
+            return TrailingJunk.Replace(name, "").Trim();
         }
     }
 }
