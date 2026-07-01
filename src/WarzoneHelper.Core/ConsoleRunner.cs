@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using WarzoneHelper.Core.Config;
 
@@ -31,6 +32,10 @@ namespace WarzoneHelper.Core
                         new HelperConfig().Save(p);
                         Console.Error.WriteLine($"Wrote default config to {p}");
                         return 0;
+                    case "--geo":
+                        var targets = new System.Collections.Generic.List<string>();
+                        while (i + 1 < args.Length && !args[i + 1].StartsWith("--")) targets.Add(args[++i]);
+                        return RunGeo(targets, configPath);
                     case "-h":
                     case "--help":
                         PrintHelp();
@@ -61,15 +66,10 @@ namespace WarzoneHelper.Core
                 }
             }
 
-            // WebSocket server: the agent streams events to the Overwolf app UI and takes GEP hints back.
+            // Declare the WS server up front, but wire the event/log handlers BEFORE starting it so
+            // its "[ws] listening on ..." line reaches the log file (and not just stderr, which a
+            // headless scheduled task discards).
             WarzoneHelper.Core.Net.EventWebSocketServer ws = null;
-            if (cfg.EnableWebSocket)
-            {
-                ws = new WarzoneHelper.Core.Net.EventWebSocketServer(
-                    cfg.WebSocketHost, cfg.WebSocketPort, core.Bus.Log,
-                    (name, data) => core.ReportGepEvent(name, data));
-                ws.Start();
-            }
 
             core.Bus.OnEvent += evt =>
             {
@@ -84,6 +84,14 @@ namespace WarzoneHelper.Core
                 diag?.WriteLine($"{DateTime.UtcNow:o} {msg}");
             };
 
+            if (cfg.EnableWebSocket)
+            {
+                ws = new WarzoneHelper.Core.Net.EventWebSocketServer(
+                    cfg.WebSocketHost, cfg.WebSocketPort, core.Bus.Log,
+                    (name, data) => core.ReportGepEvent(name, data));
+                ws.Start();
+            }
+
             var stop = new ManualResetEventSlim(false);
             Console.CancelKeyPress += (s, e) => { e.Cancel = true; stop.Set(); };
             AppDomain.CurrentDomain.ProcessExit += (s, e) => stop.Set();
@@ -95,6 +103,36 @@ namespace WarzoneHelper.Core
             ws?.Dispose();
             events?.Dispose();
             diag?.Dispose();
+            return 0;
+        }
+
+        /// <summary>Resolve a list of IPs/hostnames to GeoLite2 geo + ASN and print them, then exit.</summary>
+        private static int RunGeo(System.Collections.Generic.List<string> targets, string configPath)
+        {
+            var cfg = string.IsNullOrEmpty(configPath) ? new HelperConfig() : HelperConfig.Load(configPath);
+            using (var geo = new WarzoneHelper.Core.Geo.GeoIpResolver())
+            {
+                geo.Load(cfg.ExpandedGeoDbDir(), cfg.AutoDownloadGeoDb, m => Console.Error.WriteLine("[geo] " + m));
+                foreach (var t in targets)
+                {
+                    var ip = t;
+                    if (!System.Net.IPAddress.TryParse(t, out _))
+                    {
+                        try
+                        {
+                            var addrs = System.Net.Dns.GetHostAddresses(t);
+                            foreach (var a in addrs)
+                                if (a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) { ip = a.ToString(); break; }
+                        }
+                        catch { Console.WriteLine($"{t,-42} (DNS resolve failed)"); continue; }
+                    }
+                    var info = geo.Resolve(ip);
+                    if (info == null) { Console.WriteLine($"{t,-42} {ip,-16} (no data)"); continue; }
+                    var loc = string.Join(", ", new[] { info.City, info.CountryName ?? info.CountryIso }
+                        .Where(s => !string.IsNullOrEmpty(s)));
+                    Console.WriteLine($"{t,-42} {ip,-16} {loc}  | ASN {info.AsnNumber} {info.AsnOrg}");
+                }
+            }
             return 0;
         }
 
