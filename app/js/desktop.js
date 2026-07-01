@@ -152,9 +152,14 @@ function updateSummary(name, d) {
     case 'PLAYER_DEAD': els.health.textContent = 'DEAD'; break;
     case 'LOBBY_ID_CHANGED': els.lobby.textContent = d.lobbyId; break;
     case 'COD_STATUS_CHANGED': els.status.textContent = `${d.gameTitle}: ${d.change}`; break;
-    case 'PERF_STATS':
-      // Real latency from the HUD overlay (ICMP is blocked), preferred over the ping fallback.
-      if (d.gameLatencyMs != null) els.ping.textContent = `${d.gameLatencyMs} ms`;
+    case 'PERF_STATS': {
+      // Ping = network LATENCY (truer ping); show game latency alongside when present.
+      const net = d.latencyMs, game = d.gameLatencyMs;
+      if (net != null || game != null)
+        els.ping.textContent = net != null
+          ? `${net} ms${game != null ? ` (game ${game})` : ''}`
+          : `game ${game} ms`;
       break;
+    }
   }
 }

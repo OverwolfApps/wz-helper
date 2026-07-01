@@ -118,13 +118,27 @@ namespace WarzoneHelper.Core.Screen
 
         private static Bitmap Crop(Bitmap b, double[] r) => b.Clone(ToRect(b, r), b.PixelFormat);
 
-        /// <summary>Crop + OCR a region, skipping crops too small for Tesseract to avoid its stderr spam.</summary>
+        /// <summary>Crop + OCR a region. Skips tiny crops, and upscales short ones (thin HUD strips
+        /// like the perf overlay / lobby id) since Tesseract reads small text poorly.</summary>
         private string ReadRegion(Bitmap frame, double[] region, string whitelist, bool singleLine)
         {
             var rect = ToRect(frame, region);
             if (rect.Width < MinOcrPx || rect.Height < MinOcrPx) return null;
             using (var crop = frame.Clone(rect, frame.PixelFormat))
-                return _ocr.Read(crop, whitelist, singleLine);
+            {
+                // Aim for ~48px tall text for OCR; upscale thin strips.
+                int scale = rect.Height < 48 ? Math.Min(4, (int)Math.Ceiling(48.0 / rect.Height)) : 1;
+                if (scale <= 1) return _ocr.Read(crop, whitelist, singleLine);
+                using (var big = new Bitmap(rect.Width * scale, rect.Height * scale))
+                {
+                    using (var g = Graphics.FromImage(big))
+                    {
+                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.DrawImage(crop, 0, 0, big.Width, big.Height);
+                    }
+                    return _ocr.Read(big, whitelist, singleLine);
+                }
+            }
         }
 
         /// <summary>Health bar: fraction of the bar width that is "filled" (bright, non-dark) pixels.</summary>
