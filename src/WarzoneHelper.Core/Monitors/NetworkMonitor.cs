@@ -85,11 +85,15 @@ namespace WarzoneHelper.Core.Monitors
                 foreach (var peer in _udp?.Snapshot() ?? Array.Empty<UdpPeer>())
                 {
                     if (string.IsNullOrEmpty(peer.RemoteAddress)) continue;
-                    bool gamePort = IsGamePort(peer.RemotePort);
-                    // Game traffic is bidirectional and sustained; ignore one-shot stray packets.
+                    // A peer is a game-server candidate if it's on a known CoD game port OR it's
+                    // pushing a sustained high-rate stream (the real match server, whatever its port).
+                    double rate = (peer.BytesSent + peer.BytesRecv) / UdpWindowSeconds;
+                    bool highTraffic = _cfg.GameServerTrafficBytesPerSec > 0 &&
+                                       rate >= _cfg.GameServerTrafficBytesPerSec;
+                    bool candidate = IsGamePort(peer.RemotePort) || highTraffic;
                     var key = $"UDP:{peer.RemoteAddress}:{peer.RemotePort}";
                     current.Add(key);
-                    Touch(key, peer.RemoteAddress, peer.RemotePort, "UDP", isGameCandidate: gamePort,
+                    Touch(key, peer.RemoteAddress, peer.RemotePort, "UDP", isGameCandidate: candidate,
                         sent: peer.BytesSent, recv: peer.BytesRecv);
                 }
 

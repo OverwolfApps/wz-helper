@@ -49,8 +49,13 @@ namespace WarzoneHelper.Core.Config
         /// Off by default so lobby/matchmaking candidates are still recorded for analysis.</summary>
         public bool GameServerRequireInMatch { get; set; } = false;
         /// <summary>Minimum sustained UDP throughput (bytes/sec, both directions) to qualify as a
-        /// game server. 0 = disabled. Real gameplay is a continuous stream; lobby traffic is bursty.</summary>
-        public int GameServerMinBytesPerSec { get; set; } = 0;
+        /// game server. Applies even to game-port peers, so near-idle Demonware endpoints on port
+        /// 3074 (~4 B/s) are excluded while the real match server (~7 KB/s) qualifies. 0 = disabled.</summary>
+        public int GameServerMinBytesPerSec { get; set; } = 1000;
+        /// <summary>Treat ANY UDP peer above this throughput (bytes/sec) as a game-server candidate,
+        /// even on a non-standard port. The real match server pushes a continuous high-rate stream,
+        /// whereas Demonware/backend endpoints on game ports are near-idle. 0 = port-only detection.</summary>
+        public int GameServerTrafficBytesPerSec { get; set; } = 3000;
 
         // --- VPN / proxy heuristics for game servers ---
         /// <summary>Ping at/above this (ms) flags a server as likely VPN/proxied routing.</summary>

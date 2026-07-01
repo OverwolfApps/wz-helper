@@ -103,6 +103,14 @@ namespace WarzoneHelper.Core
         {
             switch (evt.Name)
             {
+                // A confirmed high-throughput game server is the most reliable "in a match" signal —
+                // far more dependable than GEP/CV. Presence => in match, drop => out.
+                case EventNames.GameServerConnected:
+                    _match.Set(true);
+                    break;
+                case EventNames.GameServerDisconnected:
+                    _match.Set(false);
+                    break;
                 case EventNames.MatchStarted:
                 case EventNames.Deployed:
                     _match.Set(true);
