@@ -39,6 +39,7 @@ namespace WarzoneHelper.Core.Events
         public const string PartyListChanged = "PARTY_LIST_CHANGED";
         public const string MatchListChanged = "MATCH_LIST_CHANGED";
         public const string SpectatingPlayer = "SPECTATING_PLAYER";
+        public const string PerfStats = "PERF_STATS";
     }
 
     /// <summary>Where an event was derived from, so consumers can weigh reliability.</summary>

@@ -19,6 +19,7 @@ namespace WarzoneHelper.Core.Screen
         public bool PartyIsMatchList; // true when the player list is the large match/lobby list
         public string SpectatingName; // player currently being spectated (id stripped)
         public string SpectatingId;   // the #NNNN suffix, if read
+        public System.Collections.Generic.Dictionary<string, object> Perf; // top overlay telemetry
     }
 
     /// <summary>
@@ -60,6 +61,11 @@ namespace WarzoneHelper.Core.Screen
             // "Image too small to scale" errors and produce garbage.
             if (_ocr.Available && frame.Width >= 320 && frame.Height >= 240)
             {
+                // Top telemetry overlay (FPS / LATENCY / GAME LATENCY / ...). Shown in lobby and match.
+                var perfText = ReadRegion(frame, _regions.TopBar, null, singleLine: true);
+                var perf = PerfParser.Parse(perfText);
+                if (perf.Count > 0) s.Perf = perf;
+
                 var lobbyText = ReadRegion(frame, _regions.LobbyId, "0123456789", singleLine: true);
                 if (lobbyText != null)
                 {

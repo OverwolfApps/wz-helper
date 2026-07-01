@@ -181,5 +181,8 @@ namespace WarzoneHelper.Core.Config
         public double[] InGameSquad { get; set; } = { 0.0, 0.69, 0.13, 0.285 };
         // "SPECTATING: name#id" panel, bottom-center (when dead/spectating).
         public double[] Spectating { get; set; } = { 0.37, 0.73, 0.26, 0.10 };
+        // Perf/telemetry overlay strip along the very top (FPS / LATENCY / GAME LATENCY / etc.).
+        // Its exact position shifts, so this spans a wide top band and the parser extracts pairs.
+        public double[] TopBar { get; set; } = { 0.06, 0.0, 0.70, 0.032 };
     }
 }

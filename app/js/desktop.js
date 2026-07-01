@@ -9,7 +9,7 @@ const ALL_EVENTS = [
   'GAME_SERVER_CONNECTED','GAME_SERVER_DISCONNECTED','SERVICE_CONNECTED','SERVICE_DISCONNECTED',
   'COD_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
   'DEPLOYED','HEALTH_CHANGED','PLAYER_DEAD','LOBBY_ID_CHANGED','CHAT_MESSAGE',
-  'PARTY_LIST_CHANGED','MATCH_LIST_CHANGED','SPECTATING_PLAYER','LOG_FILE_CHANGED','CACHE_CHANGED',
+  'PARTY_LIST_CHANGED','MATCH_LIST_CHANGED','SPECTATING_PLAYER','PERF_STATS','LOG_FILE_CHANGED','CACHE_CHANGED',
 ];
 const NAME_CLASS = {
   GAME_SERVER_CONNECTED:'game', GAME_SERVER_DISCONNECTED:'game', SERVICE_CONNECTED:'svc',
@@ -126,6 +126,11 @@ function summarize(name, d) {
   if (name === 'PARTY_LIST_CHANGED' || name === 'MATCH_LIST_CHANGED')
     return `${d.count} players: ` + (d.members||[]).map(m => `${m.name}${m.level?'('+m.level+')':''}`).join(', ');
   if (name === 'SPECTATING_PLAYER') return `👁 ${d.name}${d.id?'#'+d.id:''}`;
+  if (name === 'PERF_STATS') return [
+    d.gameLatencyMs!=null?`game ${d.gameLatencyMs}ms`:'', d.latencyMs!=null?`net ${d.latencyMs}ms`:'',
+    d.packetLossPct!=null?`loss ${d.packetLossPct}%`:'', d.fps!=null?`${d.fps}fps`:'',
+    d.gpuTemp!=null?`gpu ${d.gpuTemp}°`:'', d.vramPct!=null?`vram ${d.vramPct}%`:'', d.clock||''
+  ].filter(Boolean).join('  ');
   if (name === 'HEALTH_CHANGED') return `health ${Math.round((d.health||0)*100)}%`;
   if (name === 'LOBBY_ID_CHANGED') return `lobby ${d.lobbyId}`;
   if (name === 'COD_STATUS_CHANGED') return `${d.gameTitle} [${d.platform}] ${d.change}`;
@@ -147,5 +152,9 @@ function updateSummary(name, d) {
     case 'PLAYER_DEAD': els.health.textContent = 'DEAD'; break;
     case 'LOBBY_ID_CHANGED': els.lobby.textContent = d.lobbyId; break;
     case 'COD_STATUS_CHANGED': els.status.textContent = `${d.gameTitle}: ${d.change}`; break;
+    case 'PERF_STATS':
+      // Real latency from the HUD overlay (ICMP is blocked), preferred over the ping fallback.
+      if (d.gameLatencyMs != null) els.ping.textContent = `${d.gameLatencyMs} ms`;
+      break;
   }
 }

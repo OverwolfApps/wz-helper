@@ -44,6 +44,7 @@ namespace WarzoneHelper.Core.Monitors
         private int _partyStable;
         private const int PartyStableFrames = 2;
         private string _lastSpectateKey;
+        private DateTime _lastPerfEmit = DateTime.MinValue;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -150,6 +151,16 @@ namespace WarzoneHelper.Core.Monitors
                     _bus.Publish(name, EventSource.ScreenCv, e => e
                         .With("members", payload).With("count", payload.Length));
                 }
+            }
+
+            // Perf overlay: throttle to ~1/3s since FPS/clock churn every frame.
+            if (s.Perf != null && (DateTime.UtcNow - _lastPerfEmit).TotalSeconds >= 3)
+            {
+                _lastPerfEmit = DateTime.UtcNow;
+                _bus.Publish(EventNames.PerfStats, EventSource.ScreenCv, e =>
+                {
+                    foreach (var kv in s.Perf) e.With(kv.Key, kv.Value);
+                });
             }
 
             // Spectating (when dead): emit on change of spectated player.
