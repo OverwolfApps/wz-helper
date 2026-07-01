@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Text.RegularExpressions;
 using WarzoneHelper.Core.Config;
 
@@ -31,6 +32,9 @@ namespace WarzoneHelper.Core.Screen
         private readonly IOcrEngine _ocr;
         // Real Warzone lobby/session ids are ~19 digits; require 17-20 to reject HUD numbers.
         private static readonly Regex LobbyIdRegex = new Regex(@"\d{17,20}", RegexOptions.Compiled);
+        // Observed lobby ids are 61-63 bit numbers; require bit-length in [60,64] (i.e. 2^59..2^64).
+        private static readonly BigInteger LobbyMin = BigInteger.Pow(2, 59);
+        private static readonly BigInteger LobbyMax = BigInteger.Pow(2, 64);
         // "SPECTATING: Kazu_15#4138899" — capture name and the #id suffix.
         private static readonly Regex SpectateRegex = new Regex(
             @"([A-Za-z0-9_\-\[\] ]{3,})#(\d{3,})", RegexOptions.Compiled);
@@ -61,7 +65,7 @@ namespace WarzoneHelper.Core.Screen
                 {
                     var digits = new string(lobbyText.Where(char.IsDigit).ToArray());
                     var m = LobbyIdRegex.Match(digits);
-                    if (m.Success) s.LobbyId = m.Value;   // only ~19-digit ids pass
+                    if (m.Success && IsValidLobbyId(m.Value)) s.LobbyId = m.Value;   // only ~19-digit ids pass
                 }
 
                 if (inMatch)
@@ -83,6 +87,18 @@ namespace WarzoneHelper.Core.Screen
                 }
             }
             return s;
+        }
+
+        /// <summary>
+        /// A real lobby id is 18-20 digits, not a repeated single digit, and a 60-64 bit number.
+        /// This rejects OCR/HUD noise (short runs, 000000..., and out-of-range magnitudes).
+        /// </summary>
+        private static bool IsValidLobbyId(string digits)
+        {
+            if (string.IsNullOrEmpty(digits) || digits.Length < 18 || digits.Length > 20) return false;
+            if (digits.All(c => c == digits[0])) return false;                 // 0000..., 1111..., etc.
+            if (!BigInteger.TryParse(digits, out var n)) return false;
+            return n >= LobbyMin && n < LobbyMax;                              // bit-length in [60,64]
         }
 
         private static Rectangle ToRect(Bitmap b, double[] r)
