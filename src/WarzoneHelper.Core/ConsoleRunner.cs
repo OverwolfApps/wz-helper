@@ -36,6 +36,9 @@ namespace WarzoneHelper.Core
                         var targets = new System.Collections.Generic.List<string>();
                         while (i + 1 < args.Length && !args[i + 1].StartsWith("--")) targets.Add(args[++i]);
                         return RunGeo(targets, configPath);
+                    case "--tail":
+                        string tailArg = (i + 1 < args.Length && !args[i + 1].StartsWith("--")) ? args[++i] : null;
+                        return RunTail(tailArg, configPath);
                     case "-h":
                     case "--help":
                         PrintHelp();
@@ -129,6 +132,82 @@ namespace WarzoneHelper.Core
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate handler, bool add);
 
+        /// <summary>
+        /// Follow the agent's event log (tail -f). With no argument, follows the newest
+        /// events_*.ndjson in the configured log directory and auto-switches when the agent restarts
+        /// (new {unixtime} file) or rotates the file. Pass a file or directory to override.
+        /// </summary>
+        private static int RunTail(string arg, string configPath)
+        {
+            var cfg = string.IsNullOrEmpty(configPath) ? new HelperConfig() : HelperConfig.Load(configPath);
+
+            string dir, pattern;
+            if (!string.IsNullOrEmpty(arg) && File.Exists(arg))
+            {
+                dir = Path.GetDirectoryName(Path.GetFullPath(arg));
+                pattern = Path.GetFileName(arg);
+            }
+            else if (!string.IsNullOrEmpty(arg) && Directory.Exists(arg))
+            {
+                dir = arg; pattern = "events_*.ndjson";
+            }
+            else
+            {
+                var tmpl = HelperConfig.Expand(cfg.EventLogFile); // env vars only, keep tokens
+                dir = Path.GetDirectoryName(tmpl);
+                pattern = Path.GetFileName(tmpl).Replace("{unixtime}", "*").Replace("{pid}", "*");
+            }
+
+            Console.Error.WriteLine($"[tail] following {Path.Combine(dir ?? ".", pattern)} — Ctrl+C to stop.");
+
+            var stop = new ManualResetEventSlim(false);
+            Console.CancelKeyPress += (s, e) => { e.Cancel = true; stop.Set(); };
+
+            string current = null;
+            long pos = 0;
+            var lastScan = DateTime.MinValue;
+
+            while (!stop.IsSet)
+            {
+                try
+                {
+                    // Every ~1.5s, check whether a newer matching file has appeared.
+                    if ((DateTime.UtcNow - lastScan).TotalMilliseconds > 1500)
+                    {
+                        lastScan = DateTime.UtcNow;
+                        var newest = Directory.Exists(dir)
+                            ? new DirectoryInfo(dir).GetFiles(pattern)
+                                .OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault()
+                            : null;
+                        if (newest != null && !string.Equals(newest.FullName, current, StringComparison.OrdinalIgnoreCase))
+                        {
+                            current = newest.FullName;
+                            pos = 0; // start of the new file
+                            Console.Error.WriteLine($"[tail] --> {current}");
+                        }
+                    }
+
+                    if (current == null || !File.Exists(current)) { stop.Wait(500); continue; }
+
+                    using (var fs = new FileStream(current, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        if (fs.Length < pos) pos = 0; // truncated / rotated
+                        fs.Seek(pos, SeekOrigin.Begin);
+                        using (var sr = new StreamReader(fs))
+                        {
+                            string line;
+                            while ((line = sr.ReadLine()) != null)
+                                if (line.Length > 0) Console.Out.WriteLine(line);
+                            pos = fs.Position;
+                        }
+                    }
+                }
+                catch { /* transient IO; retry next tick */ }
+                stop.Wait(400);
+            }
+            return 0;
+        }
+
         /// <summary>Resolve a list of IPs/hostnames to GeoLite2 geo + ASN and print them, then exit.</summary>
         private static int RunGeo(System.Collections.Generic.List<string> targets, string configPath)
         {
@@ -166,6 +245,8 @@ namespace WarzoneHelper.Core
 Usage:
   WarzoneHelper.Console.exe [--config <path>] [--quiet]
                             [--logfile <path> | --no-logfile]
+  WarzoneHelper.Console.exe --tail [<file|dir>]        follow the event log (tail -f)
+  WarzoneHelper.Console.exe --geo <ip|host> ...        geolocate endpoints and exit
   WarzoneHelper.Console.exe --write-default-config [path]
 
 Outputs one JSON event per line on stdout, and (by default) appends events to
