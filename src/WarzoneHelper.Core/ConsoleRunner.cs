@@ -93,18 +93,41 @@ namespace WarzoneHelper.Core
             }
 
             var stop = new ManualResetEventSlim(false);
+            var stopped = new ManualResetEventSlim(false);
+
+            // Ctrl+C / Ctrl+Break.
             Console.CancelKeyPress += (s, e) => { e.Cancel = true; stop.Set(); };
-            AppDomain.CurrentDomain.ProcessExit += (s, e) => stop.Set();
+            // Console window close [X], log-off, shutdown — CancelKeyPress does NOT catch these, so
+            // we install a native console control handler and block it until the graceful stop (and
+            // its HELPER_STOPPED event + flush) completes, within the short window the OS allows.
+            // NOTE: a hard kill (taskkill /F, Stop-ScheduledTask) terminates the process outright —
+            // no in-process code runs, so no HELPER_STOPPED there. The Overwolf app detects that via
+            // the WebSocket onclose instead.
+            _ctrlHandler = sig =>
+            {
+                stop.Set();
+                stopped.Wait(4000);
+                return true;
+            };
+            SetConsoleCtrlHandler(_ctrlHandler, true);
+            AppDomain.CurrentDomain.ProcessExit += (s, e) => { stop.Set(); stopped.Wait(4000); };
 
             Console.Error.WriteLine("Warzone Helper (standalone). Press Ctrl+C to stop.");
             core.Start();
             stop.Wait();
-            core.Stop();
+            core.Stop();               // publishes HELPER_STOPPED
             ws?.Dispose();
             events?.Dispose();
             diag?.Dispose();
+            stopped.Set();
             return 0;
         }
+
+        // Keep a reference so the delegate isn't garbage-collected while registered.
+        private static ConsoleCtrlDelegate _ctrlHandler;
+        private delegate bool ConsoleCtrlDelegate(uint ctrlType);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate handler, bool add);
 
         /// <summary>Resolve a list of IPs/hostnames to GeoLite2 geo + ASN and print them, then exit.</summary>
         private static int RunGeo(System.Collections.Generic.List<string> targets, string configPath)
