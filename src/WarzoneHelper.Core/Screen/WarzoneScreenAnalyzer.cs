@@ -12,7 +12,8 @@ namespace WarzoneHelper.Core.Screen
         public bool? DeathBannerVisible;
         public bool? DeployBannerVisible;
         public string LobbyId;
-        public string[] ChatLines;   // OCR'd in-game chat lines this frame (may be empty)
+        public string[] ChatLines;    // OCR'd in-game chat lines (in-match only)
+        public string[] PartyLines;   // OCR'd lobby party-list lines (lobby only)
     }
 
     /// <summary>
@@ -32,7 +33,7 @@ namespace WarzoneHelper.Core.Screen
             _ocr = ocr ?? new NullOcrEngine();
         }
 
-        public ScreenState Analyze(Bitmap frame)
+        public ScreenState Analyze(Bitmap frame, bool inMatch)
         {
             var s = new ScreenState();
             if (frame == null) return s;
@@ -53,10 +54,17 @@ namespace WarzoneHelper.Core.Screen
                     }
                 }
 
-                using (var crop = Crop(frame, _regions.Chat))
+                if (inMatch)
                 {
-                    var text = _ocr.Read(crop, whitelist: null, singleLine: false);
-                    s.ChatLines = CleanChat(text);
+                    // Chat only exists in-match / preparing; OCR the chat region.
+                    using (var crop = Crop(frame, _regions.Chat))
+                        s.ChatLines = CleanChat(_ocr.Read(crop, whitelist: null, singleLine: false));
+                }
+                else
+                {
+                    // In the lobby there is no chat, but the party list (top-right) is worth reading.
+                    using (var crop = Crop(frame, _regions.Party))
+                        s.PartyLines = CleanChat(_ocr.Read(crop, whitelist: null, singleLine: false));
                 }
             }
             return s;

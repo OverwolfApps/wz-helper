@@ -167,5 +167,7 @@ namespace WarzoneHelper.Core.Config
         public double[] LobbyId { get; set; } = { 0.005, 0.955, 0.20, 0.035 };
         // In-game chat, right-middle of the screen skewed toward the top.
         public double[] Chat { get; set; } = { 0.58, 0.26, 0.40, 0.30 };
+        // Party list in the lobby, top-right corner (names + levels). Tune per resolution.
+        public double[] Party { get; set; } = { 0.66, 0.11, 0.33, 0.38 };
     }
 }

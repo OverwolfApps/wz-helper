@@ -77,7 +77,7 @@ namespace WarzoneHelper.Core
                     _pushedSource = new PushedFrameSource();
                     source = _pushedSource;
                 }
-                _monitors.Add(new ScreenMonitor(_cfg, _bus, _proc, source, analyzer));
+                _monitors.Add(new ScreenMonitor(_cfg, _bus, _proc, source, analyzer, _match));
             }
 
             foreach (var m in _monitors)

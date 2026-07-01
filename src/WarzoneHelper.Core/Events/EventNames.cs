@@ -36,6 +36,7 @@ namespace WarzoneHelper.Core.Events
         public const string PlayerDead = "PLAYER_DEAD";
         public const string LobbyIdChanged = "LOBBY_ID_CHANGED";
         public const string ChatMessage = "CHAT_MESSAGE";
+        public const string PartyListChanged = "PARTY_LIST_CHANGED";
     }
 
     /// <summary>Where an event was derived from, so consumers can weigh reliability.</summary>

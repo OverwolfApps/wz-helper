@@ -20,6 +20,7 @@ namespace WarzoneHelper.Core.Monitors
         private readonly ProcessTracker _proc;
         private readonly IFrameSource _source;
         private readonly WarzoneScreenAnalyzer _analyzer;
+        private readonly MatchState _match;
         private Timer _timer;
         private int _busy;
         private bool? _wasCapturing;
@@ -38,14 +39,15 @@ namespace WarzoneHelper.Core.Monitors
         private readonly LinkedList<string> _recentChat = new LinkedList<string>();
         private readonly HashSet<string> _recentChatSet = new HashSet<string>();
         private const int RecentChatMax = 40;
+        private string _lastPartyKey;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
 
         public ScreenMonitor(HelperConfig cfg, EventBus bus, ProcessTracker proc,
-            IFrameSource source, WarzoneScreenAnalyzer analyzer)
+            IFrameSource source, WarzoneScreenAnalyzer analyzer, MatchState match)
         {
-            _cfg = cfg; _bus = bus; _proc = proc; _source = source; _analyzer = analyzer;
+            _cfg = cfg; _bus = bus; _proc = proc; _source = source; _analyzer = analyzer; _match = match;
         }
 
         public void Start()
@@ -65,18 +67,19 @@ namespace WarzoneHelper.Core.Monitors
                     // real game frame, so we never read the desktop or other apps.
                     if (frame?.Bitmap == null) { SetCapturing(false); return; }
                     SetCapturing(true);
-                    var s = _analyzer.Analyze(frame.Bitmap);
-                    Evaluate(s);
+                    bool inMatch = _match != null && _match.InMatch;
+                    var s = _analyzer.Analyze(frame.Bitmap, inMatch);
+                    Evaluate(s, inMatch);
                 }
             }
             catch (Exception ex) { _bus.Log($"[screen] {ex.Message}"); }
             finally { Interlocked.Exchange(ref _busy, 0); }
         }
 
-        private void Evaluate(ScreenState s)
+        private void Evaluate(ScreenState s, bool inMatch)
         {
-            // Health
-            if (s.HealthFraction.HasValue)
+            // Health (only meaningful in a match; skip lobby/menu preview noise)
+            if (inMatch && s.HealthFraction.HasValue)
             {
                 double h = Math.Round(s.HealthFraction.Value, 2);
                 if (!_lastHealth.HasValue || Math.Abs(h - _lastHealth.Value) >= 0.08)
@@ -88,8 +91,8 @@ namespace WarzoneHelper.Core.Monitors
                 }
             }
 
-            // Death (require 2 consecutive frames to fire, and reset when it clears)
-            if (s.DeathBannerVisible == true) _deadStreak++; else _deadStreak = 0;
+            // Death (require 2 consecutive frames to fire, and reset when it clears). In-match only.
+            if (inMatch && s.DeathBannerVisible == true) _deadStreak++; else _deadStreak = 0;
             bool dead = _deadStreak >= 2;
             if (dead && !_lastDead)
                 _bus.Publish(EventNames.PlayerDead, EventSource.ScreenCv, e => e.With("health", _lastHealth));
@@ -120,6 +123,19 @@ namespace WarzoneHelper.Core.Monitors
                     if (key.Length == 0 || _recentChatSet.Contains(key)) continue;
                     RememberChat(key);
                     _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e => e.With("text", line));
+                }
+            }
+
+            // Party list (lobby): emit only when the set of members changes.
+            if (s.PartyLines != null && s.PartyLines.Length > 0)
+            {
+                var members = s.PartyLines.Where(l => Normalize(l).Length >= 2).ToArray();
+                var key = string.Join("|", members.Select(Normalize).OrderBy(x => x));
+                if (key.Length > 0 && key != _lastPartyKey)
+                {
+                    _lastPartyKey = key;
+                    _bus.Publish(EventNames.PartyListChanged, EventSource.ScreenCv, e => e
+                        .With("members", members).With("count", members.Length));
                 }
             }
         }
