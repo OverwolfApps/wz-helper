@@ -40,6 +40,9 @@ namespace WarzoneHelper.Core.Monitors
         private readonly HashSet<string> _recentChatSet = new HashSet<string>();
         private const int RecentChatMax = 40;
         private string _lastPartyKey;
+        private string _pendingPartyKey;
+        private int _partyStable;
+        private const int PartyStableFrames = 2;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -126,16 +129,23 @@ namespace WarzoneHelper.Core.Monitors
                 }
             }
 
-            // Party list (lobby): emit only when the set of members changes.
+            // Party list (lobby): parse OCR lines into structured members, then emit only when the
+            // set is STABLE across consecutive frames (OCR jitters frame-to-frame) and has changed.
             if (s.PartyLines != null && s.PartyLines.Length > 0)
             {
-                var members = s.PartyLines.Where(l => Normalize(l).Length >= 2).ToArray();
-                var key = string.Join("|", members.Select(Normalize).OrderBy(x => x));
-                if (key.Length > 0 && key != _lastPartyKey)
+                var members = PartyParser.Parse(s.PartyLines);
+                var key = string.Join("|", members.Select(m => m.Key));
+
+                if (key == _pendingPartyKey) _partyStable++;
+                else { _pendingPartyKey = key; _partyStable = 1; }
+
+                if (_partyStable == PartyStableFrames && key.Length > 0 && key != _lastPartyKey)
                 {
                     _lastPartyKey = key;
+                    var payload = members.Select(m => new Dictionary<string, object> {
+                        { "name", m.Name }, { "level", m.Level } }).ToArray();
                     _bus.Publish(EventNames.PartyListChanged, EventSource.ScreenCv, e => e
-                        .With("members", members).With("count", members.Length));
+                        .With("members", payload).With("count", payload.Length));
                 }
             }
         }
