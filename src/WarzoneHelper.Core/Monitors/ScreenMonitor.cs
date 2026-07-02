@@ -40,10 +40,15 @@ namespace WarzoneHelper.Core.Monitors
         private readonly HashSet<string> _recentChatSet = new HashSet<string>();
         private const int RecentChatMax = 40;
         // Chat lingers on screen for seconds, so a real message is read across many frames while
-        // OCR garbage flickers frame-to-frame. Require the same message on N consecutive frames
-        // before emitting; votes reset the moment a message stops being seen.
-        private readonly Dictionary<string, int> _chatVotes = new Dictionary<string, int>();
-        private const int ChatStableFrames = 2;
+        // OCR garbage flickers frame-to-frame (each garbled read is a different key). Require the
+        // same message on N frames before emitting, but count sightings within a rolling time
+        // WINDOW rather than strictly consecutively — so a dropped OCR frame or a fast-scrolling
+        // line still accumulates its votes. Votes expire once a message hasn't been seen for the
+        // window (bounds memory and stops long-gone text from ever firing).
+        private readonly Dictionary<string, (int count, DateTime last)> _chatVotes =
+            new Dictionary<string, (int, DateTime)>();
+        private const int ChatStableFrames = 3;
+        private static readonly TimeSpan ChatVoteWindow = TimeSpan.FromSeconds(8);
         private string _lastPartyKey;
         private string _pendingPartyKey;
         private int _partyStable;
@@ -139,23 +144,25 @@ namespace WarzoneHelper.Core.Monitors
             // Chat: parse OCR lines into "[CHANNEL] name" + body messages, emit each once.
             if (s.ChatLines != null && s.ChatLines.Length > 0)
             {
-                var seenNow = new HashSet<string>();
+                var now = DateTime.UtcNow;
                 foreach (var msg in ChatParser.Parse(s.ChatLines))
                 {
-                    seenNow.Add(msg.Key);
                     if (_recentChatSet.Contains(msg.Key)) continue;   // already emitted this message
-                    _chatVotes.TryGetValue(msg.Key, out var v); v++;
-                    _chatVotes[msg.Key] = v;
-                    if (v < ChatStableFrames) continue;               // not confident yet
+                    // Fresh vote if never seen or the previous sighting fell outside the window.
+                    var count = _chatVotes.TryGetValue(msg.Key, out var e) && now - e.last <= ChatVoteWindow
+                        ? e.count + 1 : 1;
+                    _chatVotes[msg.Key] = (count, now);
+                    if (count < ChatStableFrames) continue;           // not confident yet
                     RememberChat(msg.Key);
                     _chatVotes.Remove(msg.Key);
-                    _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e => e
+                    _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e2 => e2
                         .With("channel", msg.Channel).With("name", msg.Name).With("text", msg.Text));
                 }
-                // Reset votes for messages that vanished this frame (require CONSECUTIVE sightings,
-                // so one-frame OCR garbage never accumulates enough votes to fire).
+                // Expire votes for messages not seen within the window (bounds memory; stops
+                // long-scrolled-off garbage from ever reaching the threshold).
                 if (_chatVotes.Count > 0)
-                    foreach (var k in _chatVotes.Keys.Where(k => !seenNow.Contains(k)).ToList())
+                    foreach (var k in _chatVotes.Where(kv => now - kv.Value.last > ChatVoteWindow)
+                                                .Select(kv => kv.Key).ToList())
                         _chatVotes.Remove(k);
             }
 
