@@ -151,7 +151,15 @@ function updateSummary(name, d) {
     case 'HEALTH_CHANGED': els.health.textContent = `${Math.round((d.health||0)*100)}%`; break;
     case 'PLAYER_DEAD': els.health.textContent = 'DEAD'; break;
     case 'LOBBY_ID_CHANGED': els.lobby.textContent = d.lobbyId; break;
-    case 'COD_STATUS_CHANGED': els.status.textContent = `${d.gameTitle}: ${d.change}`; break;
+    case 'COD_STATUS_CHANGED':
+      if (d.ok === true || d.change === 'all_ok') {
+        els.status.textContent = 'OK'; els.status.style.color = 'var(--game)';
+      } else if (d.activeIssues != null && d.change === 'summary') {
+        els.status.textContent = `${d.activeIssues} issue${d.activeIssues===1?'':'s'}`; els.status.style.color = 'var(--warn)';
+      } else {
+        els.status.textContent = `${d.gameTitle}: ${d.change}`; els.status.style.color = 'var(--warn)';
+      }
+      break;
     case 'PERF_STATS': {
       // Ping = network LATENCY (truer ping); show game latency alongside when present.
       const net = d.latencyMs, game = d.gameLatencyMs;

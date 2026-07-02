@@ -173,6 +173,22 @@ namespace WarzoneHelper.Core.Monitors
                 });
             }
 
+            // Killfeed + event log: emit each new entry once (feed lines persist across frames).
+            if (s.FeedLines != null && s.FeedLines.Length > 0)
+            {
+                foreach (var item in Screen.FeedParser.Parse(s.FeedLines))
+                {
+                    if (_recentChatSet.Contains(item.Key)) continue;
+                    RememberChat(item.Key);
+                    if (item.Type == "kill")
+                        _bus.Publish(EventNames.KillfeedEntry, EventSource.ScreenCv, e => e
+                            .With("killer", item.Killer).With("victim", item.Victim));
+                    else
+                        _bus.Publish(EventNames.KillfeedEntry, EventSource.ScreenCv, e => e
+                            .With("player", item.Player).With("event", item.Event));
+                }
+            }
+
             // Spectating (when dead): emit on change of spectated player.
             if (!string.IsNullOrEmpty(s.SpectatingName))
             {

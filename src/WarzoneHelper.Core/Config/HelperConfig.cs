@@ -88,6 +88,17 @@ namespace WarzoneHelper.Core.Config
         /// </summary>
         public bool SelfCapture { get; set; } = true;
         public string TesseractDataDir { get; set; } = "%LOCALAPPDATA%\\WarzoneHelper\\tessdata";
+        /// <summary>Times a value must be read the same way to become "true" (OCR hysteresis).</summary>
+        public int ConfidenceEstablish { get; set; } = 2;
+        /// <summary>Times a DIFFERENT value must be read in a row to overturn an established one.</summary>
+        public int ConfidenceOverturn { get; set; } = 4;
+        /// <summary>Grace window (seconds): reconnecting to the same game server within this keeps
+        /// the same match session (roster preserved), absorbing the double connect/disconnect.</summary>
+        public int MatchSessionGraceSec { get; set; } = 25;
+        /// <summary>Keep disconnected players in the roster this long (seconds) before removing.</summary>
+        public int PlayerRetainSec { get; set; } = 120;
+        /// <summary>Your own player name (letters compared loosely) so the roster marks you as self.</summary>
+        public string PlayerSelfName { get; set; } = "";
         /// <summary>Screen regions (normalized 0..1) for the analyzer. See ScreenRegions.</summary>
         public ScreenRegions Regions { get; set; } = new ScreenRegions();
 
@@ -184,5 +195,7 @@ namespace WarzoneHelper.Core.Config
         // Perf/telemetry overlay strip along the very top (FPS / LATENCY / GAME LATENCY / etc.).
         // Its exact position shifts, so this spans a wide top band and the parser extracts pairs.
         public double[] TopBar { get; set; } = { 0.06, 0.0, 0.70, 0.032 };
+        // Killfeed + event log, left-middle ("<killer> [icon] <victim>" and "<player> Disconnected").
+        public double[] Feed { get; set; } = { 0.0, 0.43, 0.18, 0.17 };
     }
 }

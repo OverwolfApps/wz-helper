@@ -20,6 +20,7 @@ namespace WarzoneHelper.Core.Screen
         public string SpectatingName; // player currently being spectated (id stripped)
         public string SpectatingId;   // the #NNNN suffix, if read
         public System.Collections.Generic.Dictionary<string, object> Perf; // top overlay telemetry
+        public string[] FeedLines;    // killfeed + event-log lines (in-match)
     }
 
     /// <summary>
@@ -80,6 +81,8 @@ namespace WarzoneHelper.Core.Screen
                     s.ChatLines = SplitLines(ReadRegion(frame, _regions.Chat, null, singleLine: false));
                     // In a match the player list is the bottom-left squad panel.
                     s.PartyLines = SplitLines(ReadRegion(frame, _regions.InGameSquad, null, singleLine: false));
+                    // Killfeed + event log (left-middle) — names of enemies and disconnects.
+                    s.FeedLines = SplitLines(ReadRegion(frame, _regions.Feed, null, singleLine: false));
                     // Spectating panel (bottom-center) when dead.
                     var spec = ReadRegion(frame, _regions.Spectating, null, singleLine: false);
                     var sm = spec != null ? SpectateRegex.Match(spec) : Match.Empty;

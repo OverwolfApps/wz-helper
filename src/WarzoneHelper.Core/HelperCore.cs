@@ -80,6 +80,9 @@ namespace WarzoneHelper.Core
                 _monitors.Add(new ScreenMonitor(_cfg, _bus, _proc, source, analyzer, _match));
             }
 
+            // Unified player roster — consumes list/chat/killfeed events, emits PLAYER_* deltas.
+            _monitors.Add(new PlayerRoster(_cfg, _bus));
+
             foreach (var m in _monitors)
             {
                 try { m.Start(); _bus.Log($"[core] started {m.Name}"); }

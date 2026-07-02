@@ -63,7 +63,15 @@ namespace WarzoneHelper.Core.Monitors
                 {
                     _primed = true;
                     _last = current.ToDictionary(kv => kv.Key, kv => Signature(kv.Value));
-                    _bus.Log($"[status] primed with {current.Count} active issue(s).");
+                    if (current.Count == 0)
+                        _bus.Log("[status] no active Activision/CoD issues.");
+                    else
+                    {
+                        _bus.Log($"[status] {current.Count} active issue(s) at startup:");
+                        foreach (var kv in current)
+                            _bus.Log($"[status]   - {kv.Key.Replace("|", " [")}] : {Signature(kv.Value)}");
+                    }
+                    EmitSummary(current.Count);
                     return;
                 }
 
@@ -82,8 +90,21 @@ namespace WarzoneHelper.Core.Monitors
                         Emit(kv.Key, "issue_resolved", kv.Value, null);
 
                 _last = current.ToDictionary(kv => kv.Key, kv => Signature(kv.Value));
+                EmitSummary(current.Count);
             }
             catch (Exception ex) { _bus.Log($"[status] poll error: {ex.Message}"); }
+        }
+
+        private int _lastCount = -1;
+        /// <summary>Emit an overall status summary when the active-issue count changes (0 = all OK).</summary>
+        private void EmitSummary(int count)
+        {
+            if (count == _lastCount) return;
+            _lastCount = count;
+            _bus.Publish(EventNames.CodStatusChanged, EventSource.StatusApi, e => e
+                .With("change", count == 0 ? "all_ok" : "summary")
+                .With("activeIssues", count)
+                .With("ok", count == 0));
         }
 
         private static string Signature(JObject o)

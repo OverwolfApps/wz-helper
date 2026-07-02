@@ -40,6 +40,12 @@ namespace WarzoneHelper.Core.Events
         public const string MatchListChanged = "MATCH_LIST_CHANGED";
         public const string SpectatingPlayer = "SPECTATING_PLAYER";
         public const string PerfStats = "PERF_STATS";
+
+        // --- Unified player roster (built from party/match/squad/chat/killfeed sources) ---
+        public const string PlayerJoined = "PLAYER_JOINED";
+        public const string PlayerLeft = "PLAYER_LEFT";       // left/removed (rare; usually marked disconnected instead)
+        public const string PlayerChanged = "PLAYER_CHANGED"; // any tracked attribute changed
+        public const string KillfeedEntry = "KILLFEED_ENTRY"; // "<killer> killed <victim>"
     }
 
     /// <summary>Where an event was derived from, so consumers can weigh reliability.</summary>
