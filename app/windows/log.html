@@ -2,17 +2,16 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Warzone Helper</title>
+  <title>Warzone Helper — Log</title>
   <style>
     :root { --bg-alpha:0.92; --panel:#1b1f2a; --line:#2a3040; --txt:#e6e9f0; --muted:#8b93a7;
             --game:#48d597; --svc:#5aa0ff; --warn:#ffcf5a; --dead:#ff5a6a; }
-    * { box-sizing: border-box; }
+    * { box-sizing:border-box; }
     html,body { height:100%; }
     body { margin:0; font-family:'Segoe UI',sans-serif; color:var(--txt);
            background:rgba(16,18,24,var(--bg-alpha)); overflow:hidden; }
     header { display:flex; align-items:center; gap:10px; padding:10px 14px;
-             background:rgba(27,31,42,var(--bg-alpha)); border-bottom:1px solid var(--line);
-             -webkit-app-region:drag; }
+             background:rgba(27,31,42,var(--bg-alpha)); border-bottom:1px solid var(--line); -webkit-app-region:drag; }
     header h1 { font-size:14px; margin:0; font-weight:600; letter-spacing:.3px; white-space:nowrap; }
     header .spacer { flex:1; }
     header .ctl { -webkit-app-region:no-drag; display:flex; align-items:center; gap:6px; }
@@ -21,25 +20,16 @@
     button:hover { background:#2c3446; }
     input[type=range] { -webkit-app-region:no-drag; width:90px; accent-color:var(--game); }
     .slabel { font-size:11px; color:var(--muted); }
-
-    /* Filter dropdown */
     .dropdown { position:relative; -webkit-app-region:no-drag; }
     #filter-panel { display:none; position:absolute; right:0; top:30px; z-index:20;
       background:#141822; border:1px solid var(--line); border-radius:8px; padding:8px;
       max-height:60vh; overflow:auto; width:230px; box-shadow:0 8px 24px rgba(0,0,0,.5); }
     #filter-panel.open { display:block; }
     #filter-panel .row2 { display:flex; gap:6px; margin-bottom:6px; }
-    #filter-panel label { display:flex; align-items:center; gap:7px; font-size:12px; padding:3px 4px;
-      border-radius:4px; cursor:pointer; }
+    #filter-panel label { display:flex; align-items:center; gap:7px; font-size:12px; padding:3px 4px; border-radius:4px; cursor:pointer; }
     #filter-panel label:hover { background:#1c2130; }
-
-    .stats { display:flex; gap:8px; padding:8px 14px; flex-wrap:wrap; }
-    .chip { background:rgba(27,31,42,var(--bg-alpha)); border:1px solid var(--line); border-radius:8px; padding:6px 10px; min-width:96px; }
-    .chip .k { font-size:10px; color:var(--muted); text-transform:uppercase; }
-    .chip .v { font-size:15px; font-weight:600; margin-top:2px; }
-
-    #log { margin:0 14px 14px; border:1px solid var(--line); border-radius:8px; overflow:auto;
-           height:calc(100vh - 150px); background:rgba(14,16,22,var(--bg-alpha)); }
+    #log { margin:0 14px 14px; margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow:auto;
+           height:calc(100vh - 74px); background:rgba(14,16,22,var(--bg-alpha)); }
     .row { display:grid; grid-template-columns:70px 180px 1fr; gap:10px; padding:5px 12px;
            border-bottom:1px solid #191d27; font-size:12px; }
     .row:hover { background:rgba(20,24,34,.6); }
@@ -48,8 +38,6 @@
     .name.warn { color:var(--warn); } .name.dead { color:var(--dead); }
     .data { color:#c4cad8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .flag { width:16px; height:12px; vertical-align:-1px; margin-right:5px; border-radius:2px; }
-
-    /* resize grips for the Overwolf (non-native) window */
     .grip { position:fixed; z-index:30; -webkit-app-region:no-drag; }
     .grip.r { right:0; top:0; width:6px; height:100%; cursor:ew-resize; }
     .grip.b { left:0; bottom:0; width:100%; height:6px; cursor:ns-resize; }
@@ -58,19 +46,13 @@
 </head>
 <body>
   <header>
-    <h1>🎯 Warzone Helper</h1>
+    <h1>🎯 Warzone Helper — Log</h1>
     <span class="spacer"></span>
-    <div class="ctl">
-      <span class="slabel">Opacity</span>
-      <input id="opacity" type="range" min="20" max="100" value="92" />
-    </div>
+    <div class="ctl"><span class="slabel">Opacity</span><input id="opacity" type="range" min="20" max="100" value="92" /></div>
     <div class="dropdown">
       <button id="filter-btn">Filter ▾</button>
       <div id="filter-panel">
-        <div class="row2">
-          <button id="filter-all">All</button>
-          <button id="filter-none">None</button>
-        </div>
+        <div class="row2"><button id="filter-all">All</button><button id="filter-none">None</button></div>
         <div id="filter-list"></div>
       </div>
     </div>
@@ -78,22 +60,10 @@
     <button id="min">—</button>
     <button id="close">✕</button>
   </header>
-
-  <div class="stats">
-    <div class="chip"><div class="k">Game</div><div class="v" id="s-game">—</div></div>
-    <div class="chip"><div class="k">Server</div><div class="v" id="s-server">—</div></div>
-    <div class="chip"><div class="k">Ping</div><div class="v" id="s-ping">—</div></div>
-    <div class="chip"><div class="k">Health</div><div class="v" id="s-health">—</div></div>
-    <div class="chip"><div class="k">Lobby</div><div class="v" id="s-lobby">—</div></div>
-    <div class="chip"><div class="k">CoD status</div><div class="v" id="s-status">—</div></div>
-  </div>
-
   <div id="log"></div>
-
   <div class="grip r" data-edge="right"></div>
   <div class="grip b" data-edge="bottom"></div>
   <div class="grip br" data-edge="bottom-right"></div>
-
-  <script src="../js/desktop.js"></script>
+  <script src="../js/log.js"></script>
 </body>
 </html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Warzone Helper — HUD</title>
+  <style>
+    :root { --bg-alpha:0.9; --line:#2a3040; --muted:#8b93a7; --game:#48d597; }
+    * { box-sizing:border-box; }
+    html,body { height:100%; }
+    body { margin:0; font-family:'Segoe UI',sans-serif; color:#e6e9f0; overflow:hidden;
+           background:transparent; }
+    .bar { display:flex; align-items:stretch; gap:6px; padding:8px; height:100%;
+           background:rgba(16,18,24,var(--bg-alpha)); border-radius:10px; -webkit-app-region:drag; }
+    .chip { background:rgba(27,31,42,var(--bg-alpha)); border:1px solid var(--line); border-radius:8px;
+            padding:6px 10px; min-width:92px; flex:1; }
+    .chip .k { font-size:10px; color:var(--muted); text-transform:uppercase; }
+    .chip .v { font-size:15px; font-weight:600; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .flag { width:16px; height:12px; vertical-align:-1px; margin-right:4px; border-radius:2px; }
+    .x { -webkit-app-region:no-drag; align-self:center; background:#242a38; color:#e6e9f0;
+         border:1px solid var(--line); border-radius:5px; padding:4px 7px; cursor:pointer; font-size:11px; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="chip"><div class="k">Game</div><div class="v" id="s-game">—</div></div>
+    <div class="chip"><div class="k">Server</div><div class="v" id="s-server">—</div></div>
+    <div class="chip"><div class="k">Ping</div><div class="v" id="s-ping">—</div></div>
+    <div class="chip"><div class="k">Health</div><div class="v" id="s-health">—</div></div>
+    <div class="chip"><div class="k">Lobby</div><div class="v" id="s-lobby">—</div></div>
+    <div class="chip"><div class="k">CoD status</div><div class="v" id="s-status">—</div></div>
+    <button class="x" id="close">✕</button>
+  </div>
+  <script src="../js/hud.js"></script>
+</body>
+</html>

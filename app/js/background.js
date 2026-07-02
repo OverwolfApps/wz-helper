@@ -68,7 +68,7 @@ function onHelperEvent(name, data) {
 }
 
 function broadcast(id, content) {
-  for (const win of ['desktop', 'in_game', 'players']) {
+  for (const win of ['log', 'hud', 'in_game', 'players']) {
     overwolf.windows.sendMessage(win, id, content, () => {});
   }
 }
@@ -148,7 +148,7 @@ function main() {
   connect();
   wireGep();
   startFramePush();
-  for (const w of ['desktop', 'players']) {
+  for (const w of ['log', 'hud', 'players']) {
     overwolf.windows.obtainDeclaredWindow(w, (r) => {
       if (r.status === 'success') overwolf.windows.restore(r.window.id, () => {});
     });

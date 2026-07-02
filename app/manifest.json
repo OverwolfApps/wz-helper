@@ -26,14 +26,23 @@
         "is_background_page": true,
         "show_in_taskbar": false
       },
-      "desktop": {
-        "file": "windows/desktop.html",
+      "log": {
+        "file": "windows/log.html",
         "resizable": true,
         "show_in_taskbar": true,
         "transparent": true,
         "override_on_update": true,
-        "size": { "width": 1100, "height": 720 },
-        "min_size": { "width": 420, "height": 300 }
+        "size": { "width": 1000, "height": 640 },
+        "min_size": { "width": 420, "height": 260 }
+      },
+      "hud": {
+        "file": "windows/hud.html",
+        "resizable": true,
+        "show_in_taskbar": true,
+        "transparent": true,
+        "override_on_update": true,
+        "size": { "width": 720, "height": 92 },
+        "min_size": { "width": 300, "height": 60 }
       },
       "players": {
         "file": "windows/players.html",
