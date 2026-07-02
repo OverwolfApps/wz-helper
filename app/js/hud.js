@@ -14,9 +14,13 @@ function flagImg(iso) {
   return `<img class="flag" src="https://flagcdn.com/20x15/${iso.toLowerCase()}.png" alt="${iso}" onerror="this.replaceWith('${iso} ')">`;
 }
 
+function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
+applyOpacity(parseInt(localStorage.getItem('wzh_opacity') || '90', 10));
+
 overwolf.windows.onMessageReceived.addListener((msg) => {
   if (msg.id === 'helper-event') update(msg.content.name, msg.content.data);
   else if (msg.id === 'agent-status' && !msg.content.connected) els.game.textContent = 'agent offline';
+  else if (msg.id === 'set-opacity') { applyOpacity(msg.content.v); localStorage.setItem('wzh_opacity', msg.content.v); }
 });
 try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.events) bg.wzh.events.forEach(e => update(e.name, e.data)); } catch {}
 

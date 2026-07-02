@@ -31,7 +31,12 @@ const opacity = document.getElementById('opacity');
 function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
 opacity.value = parseInt(localStorage.getItem(LS_OPACITY) || '92', 10);
 applyOpacity(opacity.value);
-opacity.addEventListener('input', () => { applyOpacity(opacity.value); localStorage.setItem(LS_OPACITY, opacity.value); });
+opacity.addEventListener('input', () => {
+  applyOpacity(opacity.value);
+  localStorage.setItem(LS_OPACITY, opacity.value);
+  // Drive the other windows' opacity too.
+  for (const w of ['hud', 'players']) overwolf.windows.sendMessage(w, 'set-opacity', { v: opacity.value }, () => {});
+});
 
 const filterBtn = document.getElementById('filter-btn');
 const filterPanel = document.getElementById('filter-panel');

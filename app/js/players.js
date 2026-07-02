@@ -12,7 +12,11 @@ document.getElementById('grip').addEventListener('mousedown', () => {
   if (selfWindowId) overwolf.windows.dragResize(selfWindowId, 'BottomRight');
 });
 
+function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
+applyOpacity(parseInt(localStorage.getItem('wzh_opacity') || '90', 10));
+
 overwolf.windows.onMessageReceived.addListener((msg) => {
+  if (msg.id === 'set-opacity') { applyOpacity(msg.content.v); localStorage.setItem('wzh_opacity', msg.content.v); return; }
   if (msg.id !== 'helper-event') return;
   const { name, data } = msg.content;
   if (name === 'PLAYER_JOINED' || name === 'PLAYER_CHANGED') { players.set(data.key, data); render(); }
