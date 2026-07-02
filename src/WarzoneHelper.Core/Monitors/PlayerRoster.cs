@@ -53,6 +53,11 @@ namespace WarzoneHelper.Core.Monitors
         private DateTime _emptyAt = DateTime.MinValue;
         private bool _sessionOpen;
 
+        // Single, sticky "self" per match. Position-based self is fragile with incomplete OCR reads,
+        // so only (re)assign from a list at least as large as the one that set it.
+        private string _selfKey;
+        private int _selfBasis;
+
         public string Name => "roster";
 
         public PlayerRoster(HelperConfig cfg, EventBus bus) { _cfg = cfg; _bus = bus; }
@@ -125,17 +130,35 @@ namespace WarzoneHelper.Core.Monitors
         {
             if (!(evt.Data.TryGetValue("members", out var m) && m is IEnumerable<object> members)) return;
             int selfIndex = evt.Data.TryGetValue("selfIndex", out var si) && si != null ? Convert.ToInt32(si) : -1;
-            int i = 0;
+
+            var upserted = new List<Player>();
             foreach (var item in members)
             {
-                if (!(item is IDictionary<string, object> md)) { i++; continue; }
+                if (!(item is IDictionary<string, object> md)) { upserted.Add(null); continue; }
                 var name = md.TryGetValue("name", out var n) ? n?.ToString() : null;
                 int? level = md.TryGetValue("level", out var lv) && lv != null ? Convert.ToInt32(lv) : (int?)null;
-                // Self is a fixed position in the party/squad panel (top in lobby, bottom in game).
-                var t = (i == selfIndex) ? "self" : team;
-                Upsert(name, t, level, evt.Source, statusResetsDisconnect: true);
-                i++;
+                upserted.Add(Upsert(name, team, level, evt.Source, statusResetsDisconnect: true));
             }
+
+            // Assign self from a fixed position, but only from a list at least as complete as the
+            // one that last set it (an incomplete read can't move "self" onto a teammate).
+            if (selfIndex >= 0 && selfIndex < upserted.Count && upserted[selfIndex] != null)
+                SetSelf(upserted[selfIndex].Key, upserted.Count);
+        }
+
+        private void SetSelf(string key, int basis)
+        {
+            List<Player> changed = new List<Player>();
+            lock (_lock)
+            {
+                if (_selfKey == key) { if (basis > _selfBasis) _selfBasis = basis; return; }
+                if (_selfKey != null && basis <= _selfBasis) return; // don't override on a smaller read
+                if (_selfKey != null && _players.TryGetValue(_selfKey, out var old) && old.Team == "self")
+                { old.Team = "squad"; changed.Add(old); }
+                _selfKey = key; _selfBasis = basis;
+                if (_players.TryGetValue(key, out var p) && p.Team != "self") { p.Team = "self"; changed.Add(p); }
+            }
+            foreach (var p in changed.Where(x => x.Confirmed)) Emit(EventNames.PlayerChanged, p);
         }
 
         private void OnChat(HelperEvent evt)
@@ -231,7 +254,7 @@ namespace WarzoneHelper.Core.Monitors
         private void ClearRoster(string reason)
         {
             List<Player> removed;
-            lock (_lock) { removed = _players.Values.ToList(); _players.Clear(); }
+            lock (_lock) { removed = _players.Values.ToList(); _players.Clear(); _selfKey = null; _selfBasis = 0; }
             foreach (var p in removed.Where(x => x.Confirmed)) Emit(EventNames.PlayerLeft, p);
             _bus.Log($"[roster] cleared ({reason}), {removed.Count} players");
         }
