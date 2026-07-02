@@ -21,6 +21,7 @@ namespace WarzoneHelper.Core.Screen
         public string SpectatingName; // player currently being spectated (id stripped)
         public string SpectatingId;   // the #NNNN suffix, if read
         public string PartyCode;      // cached party/invite code (persists until it changes)
+        public Dictionary<string, object> Inspect; // inspect-player panel details (activisionId, ...)
         public System.Collections.Generic.Dictionary<string, object> Perf; // top overlay telemetry
         public string[] FeedLines;    // killfeed + event-log lines (in-match)
     }
@@ -101,6 +102,8 @@ namespace WarzoneHelper.Core.Screen
                     s.PartyIsMatchList = (s.PartyLines?.Length ?? 0) > 8;
                     // Party/invite code (party-code menu). Confidence-gated; persists once set.
                     _partyCode.Observe(ReadRegion(frame, _regions.PartyCode, OcrFields.PartyCode.Whitelist, singleLine: true));
+                    // Inspect-player detail panel (rich per-player data; only parses on that screen).
+                    s.Inspect = InspectParser.Parse(ReadRegion(frame, _regions.Inspect, null, singleLine: false));
                 }
                 s.PartyCode = _partyCode.Value;   // cached value (never cleared per match)
             }

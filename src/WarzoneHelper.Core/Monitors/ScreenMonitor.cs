@@ -49,6 +49,7 @@ namespace WarzoneHelper.Core.Monitors
         private int _lobbyStable;
         private const int LobbyStableFrames = 3;
         private string _lastPartyCode;
+        private string _lastInspectId;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -171,6 +172,15 @@ namespace WarzoneHelper.Core.Monitors
             {
                 _lastPartyCode = s.PartyCode;
                 _bus.Publish(EventNames.PartyCodeChanged, EventSource.ScreenCv, e => e.With("code", s.PartyCode));
+            }
+
+            // Inspect-player: emit when a new player's details are read.
+            if (s.Inspect != null && s.Inspect.TryGetValue("activisionId", out var aid) && aid != null
+                && aid.ToString() != _lastInspectId)
+            {
+                _lastInspectId = aid.ToString();
+                _bus.Publish(EventNames.PlayerInspected, EventSource.ScreenCv, e =>
+                { foreach (var kv in s.Inspect) e.With(kv.Key, kv.Value); });
             }
 
             // Perf overlay: throttle to ~1/3s since FPS/clock churn every frame.

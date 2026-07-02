@@ -265,5 +265,7 @@ namespace WarzoneHelper.Core.Config
         public Region Feed { get; set; } = new Region("left", 0.0, 0.015, 0.18, 0.17);
         // "YOUR PARTY CODE" value (big centered code, e.g. LLJGJ) on the party-code menu.
         public Region PartyCode { get; set; } = new Region("center", 0.0, -0.1325, 0.12, 0.075);
+        // Inspect-player detail panel (right side): name#id, platform, level, rank, input.
+        public Region Inspect { get; set; } = new Region("topright", 0.02, 0.10, 0.32, 0.76);
     }
 }

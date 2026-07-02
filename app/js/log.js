@@ -8,7 +8,7 @@ const ALL_EVENTS = [
   'COD_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
   'DEPLOYED','HEALTH_CHANGED','PLAYER_DEAD','LOBBY_ID_CHANGED','CHAT_MESSAGE',
   'PARTY_LIST_CHANGED','MATCH_LIST_CHANGED','SPECTATING_PLAYER','PERF_STATS','KILLFEED_ENTRY',
-  'PARTY_CODE_CHANGED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED','LOG_FILE_CHANGED','CACHE_CHANGED',
+  'PARTY_CODE_CHANGED','PLAYER_INSPECTED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED','LOG_FILE_CHANGED','CACHE_CHANGED',
 ];
 const NAME_CLASS = {
   GAME_SERVER_CONNECTED:'game', GAME_SERVER_DISCONNECTED:'game', SERVICE_CONNECTED:'svc',
@@ -107,6 +107,7 @@ function summarize(name, d) {
     return `${d.count} players: ` + (d.members||[]).map(m => `${m.name}${m.level?'('+m.level+')':''}`).join(', ');
   if (name === 'SPECTATING_PLAYER') return `👁 ${d.name}${d.id?'#'+d.id:''}`;
   if (name === 'PARTY_CODE_CHANGED') return `party code ${d.code}`;
+  if (name === 'PLAYER_INSPECTED') return `#${d.activisionId} ${d.platform||''} lvl ${d.level||'?'} ${d.rank||''} ${d.input||''}`;
   if (name === 'PERF_STATS') return [d.latencyMs!=null?`net ${d.latencyMs}ms`:'', d.gameLatencyMs!=null?`game ${d.gameLatencyMs}ms`:'', d.packetLossPct!=null?`loss ${d.packetLossPct}%`:'', d.fps!=null?`${d.fps}fps`:'', d.gpuTemp!=null?`gpu ${d.gpuTemp}°`:'', d.vramPct!=null?`vram ${d.vramPct}%`:''].filter(Boolean).join('  ');
   if (name === 'HEALTH_CHANGED') return `health ${Math.round((d.health||0)*100)}%`;
   if (name === 'LOBBY_ID_CHANGED') return `lobby ${d.lobbyId}`;
