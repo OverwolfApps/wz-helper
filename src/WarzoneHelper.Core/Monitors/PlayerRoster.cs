@@ -206,10 +206,10 @@ namespace WarzoneHelper.Core.Monitors
                 }
                 p.LastSeen = now;
                 p.Sightings++;
-                // OCR confidence gate: only surface a player after enough sightings. A stronger
-                // source (chat/killfeed naming a specific player) counts as immediately reliable.
-                bool reliableSource = source == "chat" || source == "killfeed" || source == "eventlog";
-                if (!p.Confirmed && (p.Sightings >= _cfg.ConfidenceEstablish || reliableSource))
+                // OCR confidence gate: only surface a player once the SAME name has been read enough
+                // times (kills OCR one-off garbage names from the killfeed/chat). Applies to every
+                // source — a name seen once is never trusted.
+                if (!p.Confirmed && p.Sightings >= _cfg.ConfidenceEstablish)
                 {
                     p.Confirmed = true;
                     joined = true;

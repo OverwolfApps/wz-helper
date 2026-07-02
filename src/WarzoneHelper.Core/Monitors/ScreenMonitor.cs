@@ -48,6 +48,7 @@ namespace WarzoneHelper.Core.Monitors
         private string _pendingLobbyId;
         private int _lobbyStable;
         private const int LobbyStableFrames = 3;
+        private string _lastPartyCode;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -163,6 +164,13 @@ namespace WarzoneHelper.Core.Monitors
                     _bus.Publish(name, EventSource.ScreenCv, e => e
                         .With("members", payload).With("count", payload.Length).With("selfIndex", selfIndex));
                 }
+            }
+
+            // Party code (cached; persists until it changes, not per match).
+            if (!string.IsNullOrEmpty(s.PartyCode) && s.PartyCode != _lastPartyCode)
+            {
+                _lastPartyCode = s.PartyCode;
+                _bus.Publish(EventNames.PartyCodeChanged, EventSource.ScreenCv, e => e.With("code", s.PartyCode));
             }
 
             // Perf overlay: throttle to ~1/3s since FPS/clock churn every frame.

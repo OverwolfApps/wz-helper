@@ -8,7 +8,7 @@ const ALL_EVENTS = [
   'COD_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
   'DEPLOYED','HEALTH_CHANGED','PLAYER_DEAD','LOBBY_ID_CHANGED','CHAT_MESSAGE',
   'PARTY_LIST_CHANGED','MATCH_LIST_CHANGED','SPECTATING_PLAYER','PERF_STATS','KILLFEED_ENTRY',
-  'PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED','LOG_FILE_CHANGED','CACHE_CHANGED',
+  'PARTY_CODE_CHANGED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED','LOG_FILE_CHANGED','CACHE_CHANGED',
 ];
 const NAME_CLASS = {
   GAME_SERVER_CONNECTED:'game', GAME_SERVER_DISCONNECTED:'game', SERVICE_CONNECTED:'svc',
@@ -61,6 +61,12 @@ document.getElementById('close').onclick = () => selfWindowId && overwolf.window
 const EDGE = { right:'Right', bottom:'Bottom', 'bottom-right':'BottomRight' };
 document.querySelectorAll('.grip').forEach((g) => g.addEventListener('mousedown', () => { if (selfWindowId) overwolf.windows.dragResize(selfWindowId, EDGE[g.dataset.edge]); }));
 
+// Reliable window drag for Overwolf (CSS -webkit-app-region:drag is unreliable here).
+document.querySelector('header').addEventListener('mousedown', (e) => {
+  if (e.target.closest('button, input, .dropdown')) return;   // don't drag when using controls
+  if (selfWindowId) overwolf.windows.dragMove(selfWindowId);
+});
+
 overwolf.windows.onMessageReceived.addListener((msg) => {
   if (msg.id === 'helper-event') render(msg.content);
   else if (msg.id === 'agent-status') { const h = document.querySelector('header h1'); if (h) h.textContent = msg.content.connected ? '🎯 Warzone Helper — Log' : '🎯 Warzone Helper — Log (agent offline)'; }
@@ -100,6 +106,7 @@ function summarize(name, d) {
   if (name === 'PARTY_LIST_CHANGED' || name === 'MATCH_LIST_CHANGED')
     return `${d.count} players: ` + (d.members||[]).map(m => `${m.name}${m.level?'('+m.level+')':''}`).join(', ');
   if (name === 'SPECTATING_PLAYER') return `👁 ${d.name}${d.id?'#'+d.id:''}`;
+  if (name === 'PARTY_CODE_CHANGED') return `party code ${d.code}`;
   if (name === 'PERF_STATS') return [d.latencyMs!=null?`net ${d.latencyMs}ms`:'', d.gameLatencyMs!=null?`game ${d.gameLatencyMs}ms`:'', d.packetLossPct!=null?`loss ${d.packetLossPct}%`:'', d.fps!=null?`${d.fps}fps`:'', d.gpuTemp!=null?`gpu ${d.gpuTemp}°`:'', d.vramPct!=null?`vram ${d.vramPct}%`:''].filter(Boolean).join('  ');
   if (name === 'HEALTH_CHANGED') return `health ${Math.round((d.health||0)*100)}%`;
   if (name === 'LOBBY_ID_CHANGED') return `lobby ${d.lobbyId}`;

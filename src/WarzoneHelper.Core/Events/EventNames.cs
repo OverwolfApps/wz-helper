@@ -40,6 +40,7 @@ namespace WarzoneHelper.Core.Events
         public const string MatchListChanged = "MATCH_LIST_CHANGED";
         public const string SpectatingPlayer = "SPECTATING_PLAYER";
         public const string PerfStats = "PERF_STATS";
+        public const string PartyCodeChanged = "PARTY_CODE_CHANGED";
 
         // --- Unified player roster (built from party/match/squad/chat/killfeed sources) ---
         public const string PlayerJoined = "PLAYER_JOINED";

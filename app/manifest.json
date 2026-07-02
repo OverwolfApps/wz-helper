@@ -41,8 +41,8 @@
         "show_in_taskbar": true,
         "transparent": true,
         "override_on_update": true,
-        "size": { "width": 720, "height": 92 },
-        "min_size": { "width": 300, "height": 60 }
+        "size": { "width": 1000, "height": 40 },
+        "min_size": { "width": 300, "height": 32 }
       },
       "players": {
         "file": "windows/players.html",

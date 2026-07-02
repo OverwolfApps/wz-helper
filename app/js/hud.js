@@ -1,4 +1,4 @@
-// Warzone Helper — HUD window: just the summary chips. Consumes the same event stream.
+// Warzone Helper — HUD: one line of "Label: value" (gray label / white value), in-game-metrics style.
 let selfWindowId = null;
 overwolf.windows.getCurrentWindow((r) => { if (r.status === 'success') selfWindowId = r.window.id; });
 document.getElementById('close').onclick = () => selfWindowId && overwolf.windows.hide(selfWindowId, () => {});
@@ -6,16 +6,20 @@ document.getElementById('close').onclick = () => selfWindowId && overwolf.window
 const els = {
   game: document.getElementById('s-game'), server: document.getElementById('s-server'),
   ping: document.getElementById('s-ping'), health: document.getElementById('s-health'),
-  lobby: document.getElementById('s-lobby'), status: document.getElementById('s-status'),
+  lobby: document.getElementById('s-lobby'), party: document.getElementById('s-party'),
+  status: document.getElementById('s-status'),
 };
+
+// Party code persists across matches until it changes.
+els.party.textContent = localStorage.getItem('wzh_partycode') || '—';
+
+function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
+applyOpacity(parseInt(localStorage.getItem('wzh_opacity') || '90', 10));
 
 function flagImg(iso) {
   if (!iso || iso.length !== 2) return '';
   return `<img class="flag" src="https://flagcdn.com/20x15/${iso.toLowerCase()}.png" alt="${iso}" onerror="this.replaceWith('${iso} ')">`;
 }
-
-function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
-applyOpacity(parseInt(localStorage.getItem('wzh_opacity') || '90', 10));
 
 overwolf.windows.onMessageReceived.addListener((msg) => {
   if (msg.id === 'helper-event') update(msg.content.name, msg.content.data);
@@ -41,10 +45,13 @@ function update(name, d) {
     case 'HEALTH_CHANGED': els.health.textContent = `${Math.round((d.health||0)*100)}%`; break;
     case 'PLAYER_DEAD': els.health.textContent = 'DEAD'; break;
     case 'LOBBY_ID_CHANGED': els.lobby.textContent = d.lobbyId; break;
+    case 'PARTY_CODE_CHANGED':
+      if (d.code) { els.party.textContent = d.code; localStorage.setItem('wzh_partycode', d.code); }
+      break;
     case 'COD_STATUS_CHANGED':
-      if (d.ok === true || d.change === 'all_ok') { els.status.textContent = 'OK'; els.status.style.color = 'var(--game)'; }
-      else if (d.activeIssues != null && d.change === 'summary') { els.status.textContent = `${d.activeIssues} issue${d.activeIssues===1?'':'s'}`; els.status.style.color = '#ffcf5a'; }
-      else { els.status.textContent = `${d.gameTitle}: ${d.change}`; els.status.style.color = '#ffcf5a'; }
+      if (d.ok === true || d.change === 'all_ok') { els.status.textContent = 'OK'; els.status.className = 'v ok'; }
+      else if (d.activeIssues != null && d.change === 'summary') { els.status.textContent = `${d.activeIssues} issue${d.activeIssues===1?'':'s'}`; els.status.className = 'v warn'; }
+      else { els.status.textContent = `${d.gameTitle}: ${d.change}`; els.status.className = 'v warn'; }
       break;
   }
 }

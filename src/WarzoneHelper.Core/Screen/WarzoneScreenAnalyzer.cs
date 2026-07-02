@@ -19,6 +19,7 @@ namespace WarzoneHelper.Core.Screen
         public bool PartyIsMatchList; // true when the player list is the large match/lobby list
         public string SpectatingName; // player currently being spectated (id stripped)
         public string SpectatingId;   // the #NNNN suffix, if read
+        public string PartyCode;      // cached party/invite code (persists until it changes)
         public System.Collections.Generic.Dictionary<string, object> Perf; // top overlay telemetry
         public string[] FeedLines;    // killfeed + event-log lines (in-match)
     }
@@ -52,6 +53,7 @@ namespace WarzoneHelper.Core.Screen
         private readonly FieldTracker _lobbyId = new FieldTracker(OcrFields.LobbyId);
         private readonly FieldTracker _spectateName = new FieldTracker(OcrFields.PlayerName);
         private readonly FieldTracker _spectateId = new FieldTracker(OcrFields.SpectateId);
+        private readonly FieldTracker _partyCode = new FieldTracker(OcrFields.PartyCode);
 
         public ScreenState Analyze(Bitmap frame, bool inMatch, IList<Rectangle> excluded = null)
         {
@@ -96,7 +98,10 @@ namespace WarzoneHelper.Core.Screen
                     // Lobby: top-right panel. Many members => the full match/lobby list, not your party.
                     s.PartyLines = SplitLines(ReadRegion(frame, _regions.Party, null, singleLine: false));
                     s.PartyIsMatchList = (s.PartyLines?.Length ?? 0) > 8;
+                    // Party/invite code (party-code menu). Confidence-gated; persists once set.
+                    _partyCode.Observe(ReadRegion(frame, _regions.PartyCode, OcrFields.PartyCode.Whitelist, singleLine: true));
                 }
+                s.PartyCode = _partyCode.Value;   // cached value (never cleared per match)
             }
             return s;
         }

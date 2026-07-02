@@ -99,8 +99,8 @@ namespace WarzoneHelper.Core.Config
         /// <summary>Grayscale OCR crops by max(R,G,B) (brightness) instead of luminance, so bright
         /// colored/animated HUD text (e.g. the rainbow level 1000) reads reliably.</summary>
         public bool OcrGrayscaleByValue { get; set; } = true;
-        /// <summary>Times a value must be read the same way to become "true" (OCR hysteresis).</summary>
-        public int ConfidenceEstablish { get; set; } = 2;
+        /// <summary>Times a value/name must be read the same way to become "true" (OCR hysteresis).</summary>
+        public int ConfidenceEstablish { get; set; } = 3;
         /// <summary>Times a DIFFERENT value must be read in a row to overturn an established one.</summary>
         public int ConfidenceOverturn { get; set; } = 4;
         /// <summary>Grace window (seconds): reconnecting to the same game server within this keeps
@@ -208,5 +208,7 @@ namespace WarzoneHelper.Core.Config
         public double[] TopBar { get; set; } = { 0.06, 0.0, 0.70, 0.032 };
         // Killfeed + event log, left-middle ("<killer> [icon] <victim>" and "<player> Disconnected").
         public double[] Feed { get; set; } = { 0.0, 0.43, 0.18, 0.17 };
+        // "YOUR PARTY CODE" value (big centered code, e.g. LLJGJ) on the party-code menu.
+        public double[] PartyCode { get; set; } = { 0.42, 0.35, 0.16, 0.09 };
     }
 }
