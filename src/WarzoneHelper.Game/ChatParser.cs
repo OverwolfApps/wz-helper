@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 
 using GameHelper.Core.Screen;
+using GameHelper.Core.Text;
 namespace WarzoneHelper.Game
 {
     public struct ChatMessage
@@ -54,7 +55,7 @@ namespace WarzoneHelper.Game
                 if (channel != null)
                 {
                     var text = string.Join(" ", body).Trim();
-                    if (text.Length > 0 && HasLetters(name + text))
+                    if (text.Length > 0 && TextOps.HasLetters(name + text))
                     {
                         var cleanName = Clean(name);
                         var msg = new ChatMessage
@@ -65,7 +66,7 @@ namespace WarzoneHelper.Game
                             Name = OcrFields.PlayerName.Parse(cleanName) ?? cleanName,
                             Text = text
                         };
-                        msg.Key = Norm(msg.Channel + msg.Name + msg.Text);
+                        msg.Key = TextOps.Norm(msg.Channel + msg.Name + msg.Text);
                         if (msg.Key.Length >= 4) msgs.Add(msg);
                     }
                 }
@@ -94,8 +95,6 @@ namespace WarzoneHelper.Game
             return msgs;
         }
 
-        private static bool HasLetters(string s) => s != null && s.Any(char.IsLetter);
-        private static string Norm(string s) => new string((s ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
         private static string Clean(string s)
         {

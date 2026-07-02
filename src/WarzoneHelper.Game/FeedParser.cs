@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 
 using GameHelper.Core.Screen;
+using GameHelper.Core.Text;
 namespace WarzoneHelper.Game
 {
     public struct FeedItem
@@ -48,7 +49,7 @@ namespace WarzoneHelper.Game
                 }
 
                 var names = NameChunk.Matches(line).Cast<Match>().Select(m => m.Value.Trim())
-                    .Where(n => Norm(n).Length >= 3).ToList();
+                    .Where(n => TextOps.Norm(n).Length >= 3).ToList();
                 if (names.Count >= 2)
                 {
                     // Validate both names via the shared field; drop the entry if the victim (the enemy
@@ -65,18 +66,16 @@ namespace WarzoneHelper.Game
         private static string FirstName(string s)
         {
             var m = NameChunk.Match(s ?? "");
-            return m.Success && Norm(m.Value).Length >= 3 ? m.Value.Trim() : null;
+            return m.Success && TextOps.Norm(m.Value).Length >= 3 ? m.Value.Trim() : null;
         }
 
         private static void Add(List<FeedItem> list, FeedItem it)
         {
             it.Key = it.Type == "kill"
-                ? "k:" + Norm(it.Killer) + ">" + Norm(it.Victim)
-                : "e:" + Norm(it.Player) + ":" + it.Event;
+                ? "k:" + TextOps.Norm(it.Killer) + ">" + TextOps.Norm(it.Victim)
+                : "e:" + TextOps.Norm(it.Player) + ":" + it.Event;
             list.Add(it);
         }
 
-        private static string Norm(string s) =>
-            new string((s ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
     }
 }

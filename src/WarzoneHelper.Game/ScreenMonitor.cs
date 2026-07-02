@@ -8,6 +8,8 @@ using GameHelper.Core.Screen;
 
 using GameHelper.Core;
 using GameHelper.Core.Monitors;
+using GameHelper.Core.Util;
+using GameHelper.Core.Text;
 namespace WarzoneHelper.Game
 {
     /// <summary>
@@ -38,9 +40,7 @@ namespace WarzoneHelper.Game
         private int _deployStreak;
 
         // Rolling window of recently emitted chat lines to avoid re-firing scrolling text.
-        private readonly LinkedList<string> _recentChat = new LinkedList<string>();
-        private readonly HashSet<string> _recentChatSet = new HashSet<string>();
-        private const int RecentChatMax = 40;
+        private readonly RecentKeySet _recentChat = new RecentKeySet(40);
         // Chat lingers on screen for seconds, so a real message is read across many frames while
         // OCR garbage flickers frame-to-frame (each garbled read is a different key). Require the
         // same message on N frames before emitting, but count sightings within a rolling time
@@ -149,13 +149,13 @@ namespace WarzoneHelper.Game
                 var now = DateTime.UtcNow;
                 foreach (var msg in ChatParser.Parse(s.ChatLines))
                 {
-                    if (_recentChatSet.Contains(msg.Key)) continue;   // already emitted this message
+                    if (_recentChat.Contains(msg.Key)) continue;   // already emitted this message
                     // Fresh vote if never seen or the previous sighting fell outside the window.
                     var count = _chatVotes.TryGetValue(msg.Key, out var e) && now - e.last <= ChatVoteWindow
                         ? e.count + 1 : 1;
                     _chatVotes[msg.Key] = (count, now);
                     if (count < ChatStableFrames) continue;           // not confident yet
-                    RememberChat(msg.Key);
+                    _recentChat.Add(msg.Key);
                     _chatVotes.Remove(msg.Key);
                     _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e2 => e2
                         .With("channel", msg.Channel).With("name", msg.Name).With("text", msg.Text));
@@ -224,8 +224,8 @@ namespace WarzoneHelper.Game
             {
                 foreach (var item in FeedParser.Parse(s.FeedLines))
                 {
-                    if (_recentChatSet.Contains(item.Key)) continue;
-                    RememberChat(item.Key);
+                    if (_recentChat.Contains(item.Key)) continue;
+                    _recentChat.Add(item.Key);
                     if (item.Type == "kill")
                         _bus.Publish(EventNames.KillfeedEntry, EventSource.ScreenCv, e => e
                             .With("killer", item.Killer).With("victim", item.Victim));
@@ -238,7 +238,7 @@ namespace WarzoneHelper.Game
             // Spectating (when dead): emit on change of spectated player.
             if (!string.IsNullOrEmpty(s.SpectatingName))
             {
-                var specKey = Normalize(s.SpectatingName) + s.SpectatingId;
+                var specKey = TextOps.Norm(s.SpectatingName) + s.SpectatingId;
                 if (specKey != _lastSpectateKey)
                 {
                     _lastSpectateKey = specKey;
@@ -248,20 +248,6 @@ namespace WarzoneHelper.Game
             }
         }
 
-        private static string Normalize(string s) =>
-            new string((s ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
-
-        private void RememberChat(string key)
-        {
-            _recentChat.AddLast(key);
-            _recentChatSet.Add(key);
-            while (_recentChat.Count > RecentChatMax)
-            {
-                var first = _recentChat.First.Value;
-                _recentChat.RemoveFirst();
-                _recentChatSet.Remove(first);
-            }
-        }
 
         private void SetCapturing(bool active)
         {

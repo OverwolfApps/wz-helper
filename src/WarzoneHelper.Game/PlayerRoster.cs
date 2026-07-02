@@ -8,6 +8,7 @@ using GameHelper.Core.Config;
 using GameHelper.Core.Events;
 
 using GameHelper.Core.Monitors;
+using GameHelper.Core.Text;
 namespace WarzoneHelper.Game
 {
     /// <summary>
@@ -125,34 +126,11 @@ namespace WarzoneHelper.Game
         }
 
         // ---- name matching ----
-        private static string Norm(string s) =>
-            new string((s ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
-
-        /// <summary>Levenshtein similarity 0..1 between two normalized keys.</summary>
-        private static double Sim(string a, string b)
-        {
-            if (a == b) return 1.0;
-            if (a.Length == 0 || b.Length == 0) return 0.0;
-            int[] prev = new int[b.Length + 1], cur = new int[b.Length + 1];
-            for (int j = 0; j <= b.Length; j++) prev[j] = j;
-            for (int i = 1; i <= a.Length; i++)
-            {
-                cur[0] = i;
-                for (int j = 1; j <= b.Length; j++)
-                {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    cur[j] = Math.Min(Math.Min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
-                }
-                var t = prev; prev = cur; cur = t;
-            }
-            int dist = prev[b.Length];
-            return 1.0 - (double)dist / Math.Max(a.Length, b.Length);
-        }
 
         /// <summary>Resolve a name (+ optional Activision id) to an existing cached player or a new one.</summary>
         private Player Resolve(string rawName, string activisionId)
         {
-            var key = Norm(rawName);
+            var key = TextOps.Norm(rawName);
             if (key.Length < 2 && string.IsNullOrEmpty(activisionId)) return null;
 
             if (!string.IsNullOrEmpty(activisionId) && _byActId.TryGetValue(activisionId, out var byId)) return byId;
@@ -166,7 +144,7 @@ namespace WarzoneHelper.Game
                 if (p.Key.Length == 0) continue;
                 double lr = (double)Math.Min(key.Length, p.Key.Length) / Math.Max(key.Length, p.Key.Length);
                 if (lr < 0.6) continue;
-                double s = Sim(key, p.Key);
+                double s = TextOps.Similarity(key, p.Key);
                 if (s > bestScore) { bestScore = s; best = p; }
             }
             if (best != null && bestScore >= _cfg.PlayerFuzzyThreshold) return best;
@@ -302,7 +280,7 @@ namespace WarzoneHelper.Game
                 if (!p.InMatch) { p.InMatch = true; changed = true; }
                 if (!p.Sources.Contains(source ?? "?")) { p.Sources.Add(source ?? "?"); changed = true; }
 
-                if (!string.IsNullOrEmpty(_cfg.PlayerSelfName) && Norm(_cfg.PlayerSelfName) == p.Key && p.Team != "self")
+                if (!string.IsNullOrEmpty(_cfg.PlayerSelfName) && TextOps.Norm(_cfg.PlayerSelfName) == p.Key && p.Team != "self")
                 { p.Team = "self"; changed = true; }
                 else if (Rank(team) > Rank(p.Team)) { p.Team = team; changed = true; }
                 if (level.HasValue && p.Level != level) { p.Level = level; changed = true; }
