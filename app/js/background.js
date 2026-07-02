@@ -112,23 +112,36 @@ function captureAndPush() {
   state.frameBusy = true;
   try {
     overwolf.media.getScreenshotUrl({ roundAwayFromZero: false }, (res) => {
-      if (!res || res.status !== 'success' || !res.url) { state.frameBusy = false; return; }
+      if (!res || res.status !== 'success' || !res.url) {
+        state.frameFails = (state.frameFails || 0) + 1;
+        if (state.frameFails === 1) console.warn('[wzh][frame] getScreenshotUrl failed: ' + JSON.stringify(res));
+        // DX12/Vulkan games don't support in-memory screenshots — the agent uses GDI instead. Stop trying.
+        if (state.frameFails >= 3 && state.frameTimer) {
+          clearInterval(state.frameTimer); state.frameTimer = null;
+          console.warn('[wzh][frame] disabling frame push (agent uses GDI capture for this game).');
+        }
+        state.frameBusy = false; return;
+      }
       const img = new Image();
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
           canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
           canvas.getContext('2d').drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          if (state.connected && state.ws && state.ws.readyState === WebSocket.OPEN)
+          let dataUrl;
+          try { dataUrl = canvas.toDataURL('image/jpeg', 0.7); }
+          catch (e) { console.error('[wzh][frame] toDataURL failed (canvas tainted?): ' + e.message); state.frameBusy = false; return; }
+          if (state.connected && state.ws && state.ws.readyState === WebSocket.OPEN) {
             state.ws.send(JSON.stringify({ type: 'frame', data: dataUrl }));
-        } catch (e) { /* skip frame */ }
+            if (!state.frameLogged) { state.frameLogged = true; console.log(`[wzh][frame] first frame sent ${img.naturalWidth}x${img.naturalHeight}, ${dataUrl.length} chars`); }
+          }
+        } catch (e) { console.error('[wzh][frame] draw failed: ' + e.message); }
         state.frameBusy = false;
       };
-      img.onerror = () => { state.frameBusy = false; };
+      img.onerror = () => { console.error('[wzh][frame] image load failed for ' + res.url); state.frameBusy = false; };
       img.src = res.url;
     });
-  } catch (e) { state.frameBusy = false; }
+  } catch (e) { console.error('[wzh][frame] getScreenshotUrl threw: ' + e.message); state.frameBusy = false; }
 }
 
 function main() {

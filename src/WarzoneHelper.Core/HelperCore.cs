@@ -70,7 +70,7 @@ namespace WarzoneHelper.Core
                 IFrameSource source;
                 if (_cfg.SelfCapture)
                 {
-                    source = new GdiWindowFrameSource(() => _proc.CurrentPids());
+                    source = new GdiWindowFrameSource(() => _proc.CurrentPids(), _cfg.CaptureExcludeTitles);
                 }
                 else
                 {

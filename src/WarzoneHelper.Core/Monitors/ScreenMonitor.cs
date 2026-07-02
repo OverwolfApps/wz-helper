@@ -76,7 +76,7 @@ namespace WarzoneHelper.Core.Monitors
                     if (frame?.Bitmap == null) { SetCapturing(false); return; }
                     SetCapturing(true);
                     bool inMatch = _match != null && _match.InMatch;
-                    var s = _analyzer.Analyze(frame.Bitmap, inMatch);
+                    var s = _analyzer.Analyze(frame.Bitmap, inMatch, frame.ExcludedRects);
                     Evaluate(s, inMatch);
                 }
             }

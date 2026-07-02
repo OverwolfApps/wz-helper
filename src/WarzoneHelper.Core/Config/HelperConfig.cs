@@ -87,11 +87,14 @@ namespace WarzoneHelper.Core.Config
         public bool EnableScreen { get; set; } = true;
         public int ScreenPollMs { get; set; } = 1000;
         /// <summary>
-        /// When true, capture frames via GDI (standalone) — but this also grabs any overlay windows
-        /// on top of the game. When false (default), the Overwolf app captures the GAME ONLY via its
-        /// screenshot API and pushes frames over the WebSocket, so our own overlays aren't OCR'd.
+        /// GDI screen capture of the game window (works for DX12/borderless where Overwolf's
+        /// in-memory screenshot doesn't). Regions covered by our own overlay windows are skipped so
+        /// we never OCR ourselves (see CaptureExcludeTitles). Push-frame mode (false) is only for
+        /// DX9/DX11 games where the Overwolf app can supply frames.
         /// </summary>
-        public bool SelfCapture { get; set; } = false;
+        public bool SelfCapture { get; set; } = true;
+        /// <summary>Window titles of our own overlays; regions they cover are excluded from OCR.</summary>
+        public string[] CaptureExcludeTitles { get; set; } = { "Warzone Helper", "Players" };
         public string TesseractDataDir { get; set; } = "%LOCALAPPDATA%\\WarzoneHelper\\tessdata";
         /// <summary>Grayscale OCR crops by max(R,G,B) (brightness) instead of luminance, so bright
         /// colored/animated HUD text (e.g. the rainbow level 1000) reads reliably.</summary>

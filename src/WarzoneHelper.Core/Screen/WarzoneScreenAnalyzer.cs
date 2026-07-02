@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
@@ -51,8 +52,11 @@ namespace WarzoneHelper.Core.Screen
             _grayByValue = grayscaleByValue;
         }
 
-        public ScreenState Analyze(Bitmap frame, bool inMatch)
+        private IList<Rectangle> _excluded;
+
+        public ScreenState Analyze(Bitmap frame, bool inMatch, IList<Rectangle> excluded = null)
         {
+            _excluded = excluded;
             var s = new ScreenState();
             if (frame == null) return s;
 
@@ -156,6 +160,10 @@ namespace WarzoneHelper.Core.Screen
         {
             var rect = ToRect(frame, region);
             if (rect.Width < MinOcrPx || rect.Height < MinOcrPx) return null;
+            // Skip regions our own overlay windows are covering, so we never OCR ourselves.
+            if (_excluded != null)
+                foreach (var ex in _excluded)
+                    if (ex.IntersectsWith(rect)) return null;
             Bitmap crop = frame.Clone(rect, frame.PixelFormat);
             try
             {
