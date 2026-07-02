@@ -155,6 +155,45 @@ namespace WarzoneHelper.Core.Config
         public string ExpandedGeoDbDir() => Expand(GeoDbDir);
         public string ExpandedTessDir() => Expand(TesseractDataDir);
 
+        /// <summary>Default settings file: %APPDATA%\WarzoneHelper\settings.jsonc</summary>
+        public static string DefaultConfigPath() =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WarzoneHelper", "settings.jsonc");
+
+        /// <summary>Load the JSONC config (comments allowed), writing a commented default if missing.</summary>
+        public static HelperConfig LoadOrCreate(string path, Action<string> log = null)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    // Newtonsoft ignores // and /* */ comments, so .jsonc parses directly.
+                    var cfg = JsonConvert.DeserializeObject<HelperConfig>(File.ReadAllText(path));
+                    if (cfg != null) { log?.Invoke($"[config] loaded {path}"); return cfg; }
+                }
+                else
+                {
+                    var def = new HelperConfig();
+                    def.SaveJsonc(path);
+                    log?.Invoke($"[config] wrote default {path}");
+                    return def;
+                }
+            }
+            catch (Exception ex) { log?.Invoke($"[config] error ({ex.Message}); using defaults"); }
+            return new HelperConfig();
+        }
+
+        /// <summary>Write as JSONC with a header comment (all tunables incl. region coordinates).</summary>
+        public void SaveJsonc(string path)
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            const string header =
+                "// Warzone Helper settings (JSONC — // and /* */ comments are allowed).\n" +
+                "// Delete this file to regenerate defaults. Screen region coordinates under \"Regions\"\n" +
+                "// are normalized fractions [x, y, width, height] of the game frame.\n";
+            File.WriteAllText(path, header + JsonConvert.SerializeObject(this, Formatting.Indented));
+        }
+
         public static HelperConfig Load(string path)
         {
             try

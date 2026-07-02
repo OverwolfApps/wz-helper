@@ -46,7 +46,10 @@ namespace WarzoneHelper.Core
                 }
             }
 
-            var cfg = string.IsNullOrEmpty(configPath) ? new HelperConfig() : HelperConfig.Load(configPath);
+            // Default to %APPDATA%\WarzoneHelper\settings.jsonc, auto-creating it with commented
+            // defaults so all tunables (regions, thresholds, ...) are editable without recompiling.
+            if (string.IsNullOrEmpty(configPath)) configPath = HelperConfig.DefaultConfigPath();
+            var cfg = HelperConfig.LoadOrCreate(HelperConfig.Expand(configPath), Console.Error.WriteLine);
             var core = new HelperCore(cfg);
 
             // Resolve the durable event log path: CLI override > config > (disabled).
