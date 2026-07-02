@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="GameHelper.Core/GameHelper.Core.csproj" />
+  <Project Path="WarzoneHelper.Game/WarzoneHelper.Game.csproj" />
+  <Project Path="GameHelper.Console/GameHelper.Console.csproj" />
+  <Project Path="GameHelper.Plugin/GameHelper.Plugin.csproj" />
+  <Project Path="GameHelper.RegionEditor/GameHelper.RegionEditor.csproj" />
+</Solution>

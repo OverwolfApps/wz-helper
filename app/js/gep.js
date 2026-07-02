@@ -2,7 +2,7 @@
 // GEP is unreliable and only fires while in-game, so we (a) retry setRequiredFeatures until it
 // succeeds, (b) re-arm whenever the game launches, and (c) forward every event/info-update to the
 // caller, which relays them to the agent. Treated purely as low-confidence hints.
-const COD_GEP_ID = 27860;
+const GAME_GEP_ID = 27860;
 
 function registerCodGep(onGepEvent) {
   const required = ['match_info', 'game_info'];
@@ -29,7 +29,7 @@ function registerCodGep(onGepEvent) {
   overwolf.games.onGameInfoUpdated.addListener(onGameInfo);
   function onGameInfo(e) {
     const running = e && e.gameInfo && e.gameInfo.isRunning;
-    const isCod = e && e.gameInfo && Math.floor(e.gameInfo.id / 10) === COD_GEP_ID;
+    const isCod = e && e.gameInfo && Math.floor(e.gameInfo.id / 10) === GAME_GEP_ID;
     if (running && isCod && (e.runningChanged || e.gameChanged)) trySetFeatures();
   }
 
@@ -55,4 +55,4 @@ function registerCodGep(onGepEvent) {
 }
 
 window.registerCodGep = registerCodGep;
-window.COD_GEP_ID = COD_GEP_ID;
+window.GAME_GEP_ID = GAME_GEP_ID;

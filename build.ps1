@@ -5,11 +5,11 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $dotnet = "dotnet"
 
-Write-Host "Building WarzoneHelper ($Configuration)..." -ForegroundColor Cyan
-& $dotnet build "$root\src\WarzoneHelper.slnx" -c $Configuration
+Write-Host "Building GameHelper ($Configuration)..." -ForegroundColor Cyan
+& $dotnet build "$root\src\GameHelper.slnx" -c $Configuration
 if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
-$pluginOut = "$root\src\WarzoneHelper.Plugin\bin\$Configuration"
+$pluginOut = "$root\src\GameHelper.Plugin\bin\$Configuration"
 $dest = "$root\app\plugins"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 

@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="WarzoneHelper.Console/WarzoneHelper.Console.csproj" />
-  <Project Path="WarzoneHelper.Core/WarzoneHelper.Core.csproj" />
-  <Project Path="WarzoneHelper.Plugin/WarzoneHelper.Plugin.csproj" />
-  <Project Path="WarzoneHelper.RegionEditor/WarzoneHelper.RegionEditor.csproj" />
-</Solution>

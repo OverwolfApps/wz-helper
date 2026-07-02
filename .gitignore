@@ -23,7 +23,7 @@ project.fragment.lock.json
 artifacts/
 
 # ---- Staged plugin binaries (produced by build.ps1 into app/plugins) ----
-# These are build artifacts copied from src/WarzoneHelper.Plugin/bin. Rebuild with build.ps1.
+# These are build artifacts copied from src/GameHelper.Plugin/bin. Rebuild with build.ps1.
 app/plugins/*.dll
 app/plugins/*.pdb
 app/plugins/x64/

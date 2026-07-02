@@ -2,11 +2,11 @@
   "manifest_version": 1,
   "type": "WebApp",
   "meta": {
-    "name": "Warzone Helper",
+    "name": "Game Helper",
     "author": "Bluscream",
     "version": "1.0.0",
     "minimum-overwolf-version": "0.200.0",
-    "description": "Monitors Warzone logs/cache, cod.exe network connections (with local MaxMind geo + pings and game-server classification), the Activision status API, and on-screen game state (health, deploy, death, lobby ID) — dispatching structured events.",
+    "description": "Generic game companion: monitors a game's logs/cache, its process network connections (with local MaxMind geo + pings and game-server classification), a status API, and on-screen game state — dispatching structured events. Ships with a Call of Duty: Warzone profile.",
     "icon": "img/icon_256.png",
     "icon_gray": "img/icon_gray_256.png",
     "launcher_icon": "img/icon.ico"

@@ -10,6 +10,6 @@
   "ScreenPollMs": 1000,
   "StatusPollMs": 60000,
   "AutoDownloadGeoDb": true,
-  "GeoDbDir": "%LOCALAPPDATA%\\WarzoneHelper\\geoip",
-  "TesseractDataDir": "%LOCALAPPDATA%\\WarzoneHelper\\tessdata"
+  "GeoDbDir": "%LOCALAPPDATA%\\GameHelper\\geoip",
+  "TesseractDataDir": "%LOCALAPPDATA%\\GameHelper\\tessdata"
 }

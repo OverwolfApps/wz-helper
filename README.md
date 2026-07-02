@@ -1,16 +1,17 @@
-# Warzone Helper
+# Game Helper
 
-Watches Call of Duty: Warzone from four angles and dispatches structured events. All logic lives in
-a shared **`WarzoneHelper.Core`** library.
+Watches a game from four angles and dispatches structured events. Generic infrastructure lives in
+**`GameHelper.Core`**; each supported game is a thin plug-in on top — this repo ships a Call of
+Duty: Warzone profile in **`WarzoneHelper.Game`**. A new game = one `IGameProfile` implementation.
 
-**Architecture (agent + UI):** a standalone **`WarzoneHelper.Console.exe`** runs in the background as
+**Architecture (agent + UI):** a standalone **`GameHelper.Console.exe`** runs in the background as
 an **elevated scheduled task** — it does all the work, including the ETW UDP game-server detection
 that *requires admin*, and hosts a **WebSocket server** on `ws://127.0.0.1:17999`. The **Overwolf
 app is a pure WebSocket client** with no native code: it connects to the agent, renders the event
 stream, and relays Overwolf GEP hints back over the same socket. This sidesteps the fact that
 Overwolf itself runs unelevated (so an in-process plugin could never start the ETW trace).
 
-> A native Overwolf plugin (`WarzoneHelper.Plugin`) that hosts Core in-process still exists in the
+> A native Overwolf plugin (`GameHelper.Plugin`) that hosts Core in-process still exists in the
 > repo as an optional/legacy path, but the app no longer loads it.
 
 ## What it does
@@ -18,8 +19,8 @@ Overwolf itself runs unelevated (so an in-process plugin could never start the E
 | Subsystem | Source | Events |
 |-----------|--------|--------|
 | **Log / cache watch** | `FileSystemWatcher` over Warzone log & cache dirs, with line-tailing | `LOG_FILE_CHANGED`, `CACHE_CHANGED` |
-| **Network** | Per-process TCP table (IP Helper API) + **ETW** UDP packets for `cod.exe`, classified into game servers vs. backend services, enriched with local **MaxMind** geo + ICMP ping + a **VPN/proxy heuristic** | `GAME_SERVER_CONNECTED/DISCONNECTED`, `SERVICE_CONNECTED/DISCONNECTED`, `COD_PROCESS_STARTED/STOPPED` |
-| **Status API** | Polls Activision's public status endpoint (same one the `codstatus` Discord cog uses) and diffs it | `COD_STATUS_CHANGED` |
+| **Network** | Per-process TCP table (IP Helper API) + **ETW** UDP packets for `cod.exe`, classified into game servers vs. backend services, enriched with local **MaxMind** geo + ICMP ping + a **VPN/proxy heuristic** | `GAME_SERVER_CONNECTED/DISCONNECTED`, `SERVICE_CONNECTED/DISCONNECTED`, `GAME_PROCESS_STARTED/STOPPED` |
+| **Status API** | Polls Activision's public status endpoint (same one the `codstatus` Discord cog uses) and diffs it | `GAME_STATUS_CHANGED` |
 | **Screen CV** | 1 fps frame capture → HUD region analysis (health fill, death/deploy banners) + Tesseract OCR for the lobby ID and the in-game **chat** (right-middle region) | `HEALTH_CHANGED`, `PLAYER_DEAD`, `DEPLOYED`, `LOBBY_ID_CHANGED`, `CHAT_MESSAGE` |
 | **GEP (hints only)** | Overwolf Game Events for game **27860** | `MATCH_STARTED`, `MATCH_ENDED`, `SCENE_CHANGED`, `MODE_CHANGED` |
 
@@ -45,9 +46,11 @@ still work; only UDP game-server IPs are unavailable.
 ```
 wz-helper/
   src/
-    WarzoneHelper.Core/      # all logic: monitors, geo, net, screen, event bus, orchestrator
-    WarzoneHelper.Plugin/    # Overwolf extra-object bridge (overwolf.plugins.warzonehelper.WarzoneHelperPlugin)
-    WarzoneHelper.Console/   # standalone EXE host -> ConsoleRunner.Run() in Core
+    GameHelper.Core/         # generic infra: monitors, geo, net, OCR framework, event bus, orchestrator, IGameProfile
+    WarzoneHelper.Game/      # Warzone plug-in: analyzer, parsers, roster, OCR fields, WarzoneProfile/Config
+    GameHelper.Console/      # standalone EXE host -> ConsoleRunner.Run(new WarzoneProfile(), args)
+    GameHelper.Plugin/       # Overwolf extra-object bridge (overwolf.plugins.gamehelper.GameHelperPlugin)
+    GameHelper.RegionEditor/ # WPF overlay for tuning the Warzone screen regions
   app/                       # the Overwolf WebApp (manifest + windows + js), plugin staged into app/plugins
   build.ps1
 ```
@@ -60,7 +63,7 @@ Requires the .NET SDK (builds the `net48` / x64 targets via `Microsoft.NETFramew
 ./build.ps1
 ```
 
-This builds everything and copies `WarzoneHelper.Plugin.dll` + its dependencies (Newtonsoft,
+This builds everything and copies `GameHelper.Plugin.dll` + its dependencies (Newtonsoft,
 MaxMind.Db, TraceEvent, Tesseract + native libs) into `app/plugins`, unblocking them so Overwolf
 will load them.
 
@@ -72,21 +75,21 @@ The agent must run **elevated** for ETW UDP detection. Register it once as a sch
 highest privileges, then it starts prompt-free (a desktop shortcut / `Start-ScheduledTask` triggers it):
 
 ```powershell
-$exe = "$PWD\src\WarzoneHelper.Console\bin\Release\net48\WarzoneHelper.Console.exe"
+$exe = "$PWD\src\GameHelper.Console\bin\Release\net48\GameHelper.Console.exe"
 $action    = New-ScheduledTaskAction -Execute $exe -WorkingDirectory (Split-Path $exe)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
-Register-ScheduledTask -TaskName "WarzoneHelper-Console" -Action $action -Principal $principal -Force  # once, elevated
-Start-ScheduledTask   -TaskName "WarzoneHelper-Console"
+Register-ScheduledTask -TaskName "GameHelper-Console" -Action $action -Principal $principal -Force  # once, elevated
+Start-ScheduledTask   -TaskName "GameHelper-Console"
 ```
 
 The agent hosts the WebSocket server on `ws://127.0.0.1:17999` and writes a durable event log to
-`%TEMP%\WarzoneHelper\events_{unixtime}.ndjson` (see below). Without elevation everything still
+`%TEMP%\GameHelper\events_{unixtime}.ndjson` (see below). Without elevation everything still
 works except UDP game-server IPs.
 
 ### 2. Load the Overwolf app (UI only)
 
 Overwolf → **Settings → Support → Development → Load unpacked extension** → pick `wz-helper/app`.
-Launch **Warzone Helper**: the background window connects to the agent over WebSocket, opens the
+Launch **Game Helper**: the background window connects to the agent over WebSocket, opens the
 desktop dashboard, and relays GEP hints back. If the agent isn't running the header shows
 "agent offline" and the app auto-reconnects every few seconds. **Overwolf does not need to be
 elevated** — the agent already is.
@@ -105,16 +108,16 @@ Text frames, one JSON object each. Configure via `EnableWebSocket` / `WebSocketH
 
 ```powershell
 # elevated for ETW UDP detection
-./src/WarzoneHelper.Console/bin/Release/net48/WarzoneHelper.Console.exe
-./WarzoneHelper.Console.exe --write-default-config config.json   # emit a full config to edit
-./WarzoneHelper.Console.exe --config config.json                 # one JSON event per line on stdout
+./src/GameHelper.Console/bin/Release/net48/GameHelper.Console.exe
+./GameHelper.Console.exe --write-default-config config.json   # emit a full config to edit
+./GameHelper.Console.exe --config config.json                 # one JSON event per line on stdout
 ```
 
 The console prints one JSON event object per line to **stdout** and logs to **stderr**, so it pipes
 cleanly into other tools. It **also** appends events to a durable log file by default (important
 when run headless as a scheduled task, where no console is attached):
 
-- Events → `%TEMP%\WarzoneHelper\events_{unixtime}.ndjson` (newline-delimited JSON; a fresh file per run)
+- Events → `%TEMP%\GameHelper\events_{unixtime}.ndjson` (newline-delimited JSON; a fresh file per run)
 - Diagnostics → sibling `events_{unixtime}.log`
 - Files rotate to `…_{unixtime}.1.ndjson` past `LogRotateMB` (default 20 MB).
 - Path supports the `{unixtime}` and `{pid}` tokens.
@@ -122,7 +125,7 @@ when run headless as a scheduled task, where no console is attached):
 Override with `--logfile <path>`, disable with `--no-logfile`; or set `EventLogFile` / `DiagLogFile`
 / `LogRotateMB` in config. `--quiet` silences stderr `[log]` lines but keeps writing them to the file.
 The agent GDI-captures the game window itself (`SelfCapture=true`). The same logic is reachable as
-`WarzoneHelper.Core.ConsoleRunner.Run(string[])` for a generic managed DLL runner.
+`GameHelper.Core.ConsoleRunner.Run(IGameProfile, string[])` for a generic managed DLL runner.
 
 ## Event shape
 

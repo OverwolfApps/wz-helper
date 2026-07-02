@@ -1,4 +1,4 @@
-// Warzone Helper — HUD: one compact line of "Label: value" (gray label / white value). Auto-sizes
+// Game Helper — HUD: one compact line of "Label: value" (gray label / white value). Auto-sizes
 // to content, hides fields that have no value yet.
 let selfWindowId = null;
 overwolf.windows.getCurrentWindow((r) => { if (r.status === 'success') selfWindowId = r.window.id; });
@@ -58,8 +58,8 @@ try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.ev
 function update(name, d) {
   if (!d) return;
   switch (name) {
-    case 'COD_PROCESS_STARTED': setField(els.game, 'running'); break;
-    case 'COD_PROCESS_STOPPED': setField(els.game, 'closed'); break;
+    case 'GAME_PROCESS_STARTED': setField(els.game, 'running'); break;
+    case 'GAME_PROCESS_STOPPED': setField(els.game, 'closed'); break;
     case 'GAME_SERVER_CONNECTED':
       setFieldHtml(els.server, `${flagImg(d.countryIso)}${d.city || d.countryIso || d.ip}${d.isLikelyVPN?' ⚠':''}`);
       setField(els.ping, d.pingMs >= 0 ? `${d.pingMs} ms` : (d.bytesPerSec ? `n/a · ${d.bytesPerSec} B/s` : 'n/a')); break;
@@ -75,7 +75,7 @@ function update(name, d) {
     case 'PARTY_CODE_CHANGED':
       if (d.code) { setField(els.party, d.code); localStorage.setItem('wzh_partycode', d.code); }
       break;
-    case 'COD_STATUS_CHANGED':
+    case 'GAME_STATUS_CHANGED':
       if (d.ok === true || d.change === 'all_ok') setField(els.status, 'OK', 'ok');
       else if (d.activeIssues != null && d.change === 'summary') setField(els.status, `${d.activeIssues} issue${d.activeIssues===1?'':'s'}`, 'warn');
       else setField(els.status, `${d.gameTitle}: ${d.change}`, 'warn');

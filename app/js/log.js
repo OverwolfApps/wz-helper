@@ -1,18 +1,18 @@
-// Warzone Helper — Log window: event rows + filter/clear/opacity/resize. (HUD chips live in hud.js.)
+// Game Helper — Log window: event rows + filter/clear/opacity/resize. (HUD chips live in hud.js.)
 let selfWindowId = null;
 overwolf.windows.getCurrentWindow((r) => { if (r.status === 'success') selfWindowId = r.window.id; });
 
 const ALL_EVENTS = [
-  'HELPER_STARTED','HELPER_STOPPED','COD_PROCESS_STARTED','COD_PROCESS_STOPPED',
+  'HELPER_STARTED','HELPER_STOPPED','GAME_PROCESS_STARTED','GAME_PROCESS_STOPPED',
   'GAME_SERVER_CONNECTED','GAME_SERVER_DISCONNECTED','SERVICE_CONNECTED','SERVICE_DISCONNECTED',
-  'COD_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
+  'GAME_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
   'DEPLOYED','HEALTH_CHANGED','PLAYER_DEAD','LOBBY_ID_CHANGED','CHAT_MESSAGE',
   'PARTY_LIST_CHANGED','MATCH_LIST_CHANGED','SPECTATING_PLAYER','PERF_STATS','KILLFEED_ENTRY',
   'PARTY_CODE_CHANGED','PLAYER_INSPECTED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED','LOG_FILE_CHANGED','CACHE_CHANGED',
 ];
 const NAME_CLASS = {
   GAME_SERVER_CONNECTED:'game', GAME_SERVER_DISCONNECTED:'game', SERVICE_CONNECTED:'svc',
-  SERVICE_DISCONNECTED:'svc', PLAYER_DEAD:'dead', HEALTH_CHANGED:'warn', COD_STATUS_CHANGED:'warn',
+  SERVICE_DISCONNECTED:'svc', PLAYER_DEAD:'dead', HEALTH_CHANGED:'warn', GAME_STATUS_CHANGED:'warn',
   CHAT_MESSAGE:'svc', PARTY_LIST_CHANGED:'game', MATCH_LIST_CHANGED:'warn', SPECTATING_PLAYER:'warn',
   PLAYER_JOINED:'game', PLAYER_LEFT:'dead', KILLFEED_ENTRY:'dead',
 };
@@ -69,7 +69,7 @@ document.querySelector('header').addEventListener('mousedown', (e) => {
 
 overwolf.windows.onMessageReceived.addListener((msg) => {
   if (msg.id === 'helper-event') render(msg.content);
-  else if (msg.id === 'agent-status') { const h = document.querySelector('header h1'); if (h) h.textContent = msg.content.connected ? '🎯 Warzone Helper — Log' : '🎯 Warzone Helper — Log (agent offline)'; }
+  else if (msg.id === 'agent-status') { const h = document.querySelector('header h1'); if (h) h.textContent = msg.content.connected ? '🎯 Game Helper — Log' : '🎯 Game Helper — Log (agent offline)'; }
 });
 try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.events) bg.wzh.events.forEach(render); } catch {}
 
@@ -111,7 +111,7 @@ function summarize(name, d) {
   if (name === 'PERF_STATS') return [d.latencyMs!=null?`net ${d.latencyMs}ms`:'', d.gameLatencyMs!=null?`game ${d.gameLatencyMs}ms`:'', d.packetLossPct!=null?`loss ${d.packetLossPct}%`:'', d.fps!=null?`${d.fps}fps`:'', d.gpuTemp!=null?`gpu ${d.gpuTemp}°`:'', d.vramPct!=null?`vram ${d.vramPct}%`:''].filter(Boolean).join('  ');
   if (name === 'HEALTH_CHANGED') return `health ${Math.round((d.health||0)*100)}%`;
   if (name === 'LOBBY_ID_CHANGED') return `lobby ${d.lobbyId}`;
-  if (name === 'COD_STATUS_CHANGED') return d.ok ? 'all OK' : (d.activeIssues!=null ? `${d.activeIssues} issue(s)` : `${d.gameTitle}: ${d.change}`);
+  if (name === 'GAME_STATUS_CHANGED') return d.ok ? 'all OK' : (d.activeIssues!=null ? `${d.activeIssues} issue(s)` : `${d.gameTitle}: ${d.change}`);
   if (name === 'LOG_FILE_CHANGED') return d.line ? d.line.slice(0,160) : (d.path||'');
   return JSON.stringify(d).slice(0,160);
 }

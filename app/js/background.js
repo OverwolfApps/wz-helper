@@ -1,7 +1,7 @@
-// Warzone Helper — background controller (WebSocket client).
+// Game Helper — background controller (WebSocket client).
 //
 // The app no longer loads the native DLL. Instead the elevated background agent
-// (WarzoneHelper.Console.exe, run as an admin scheduled task) hosts a WebSocket server and does
+// (GameHelper.Console.exe, run as an admin scheduled task) hosts a WebSocket server and does
 // all the privileged work — including the ETW UDP game-server detection that Overwolf itself can't
 // do unelevated. This window just connects, fans events out to the UI windows, and relays GEP
 // hints back to the agent.
