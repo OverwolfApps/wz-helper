@@ -85,7 +85,7 @@ namespace WarzoneHelper.Core.Config
 
         // --- Screen CV ---
         public bool EnableScreen { get; set; } = true;
-        public int ScreenPollMs { get; set; } = 1000;
+        public int ScreenPollMs { get; set; } = 500;
         /// <summary>
         /// GDI screen capture of the game window (works for DX12/borderless where Overwolf's
         /// in-memory screenshot doesn't). Regions covered by our own overlay windows are skipped so
