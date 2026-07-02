@@ -31,8 +31,14 @@ namespace WarzoneHelper.Core.Screen
             @"^.{0,3}[\[\(]\s*(MATCH|PARTY|SQUAD|ALL)\s*[\]\)]\s*(.*)$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // UI text that leaks into the chat region and must never become a "message". Covers the
+        // "Press F2 in game to access the Chat Channels" hint (and its many garbled OCR forms —
+        // "access the Chat Chai LE", "at the Chat Channe", "Chat Channt SE 4 y") plus the chat input
+        // box placeholder ("Match: TAB to change text chat, type / for commands"). "chat cha" alone
+        // catches Channel/Channels/Chai/Channt/Cha, which every hint variant contains.
         private static readonly Regex Noise = new Regex(
-            @"press\s*f2|chat\s*channel", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"press\s*f2|chat\s*cha|access.{0,12}chat|in\s*game\s*to|tab\s*to\s*change|text\s*chat|for\s*command",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private const int MaxBodyLines = 3;
 

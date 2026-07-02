@@ -39,6 +39,11 @@ namespace WarzoneHelper.Core.Monitors
         private readonly LinkedList<string> _recentChat = new LinkedList<string>();
         private readonly HashSet<string> _recentChatSet = new HashSet<string>();
         private const int RecentChatMax = 40;
+        // Chat lingers on screen for seconds, so a real message is read across many frames while
+        // OCR garbage flickers frame-to-frame. Require the same message on N consecutive frames
+        // before emitting; votes reset the moment a message stops being seen.
+        private readonly Dictionary<string, int> _chatVotes = new Dictionary<string, int>();
+        private const int ChatStableFrames = 2;
         private string _lastPartyKey;
         private string _pendingPartyKey;
         private int _partyStable;
@@ -134,13 +139,24 @@ namespace WarzoneHelper.Core.Monitors
             // Chat: parse OCR lines into "[CHANNEL] name" + body messages, emit each once.
             if (s.ChatLines != null && s.ChatLines.Length > 0)
             {
+                var seenNow = new HashSet<string>();
                 foreach (var msg in ChatParser.Parse(s.ChatLines))
                 {
-                    if (_recentChatSet.Contains(msg.Key)) continue;
+                    seenNow.Add(msg.Key);
+                    if (_recentChatSet.Contains(msg.Key)) continue;   // already emitted this message
+                    _chatVotes.TryGetValue(msg.Key, out var v); v++;
+                    _chatVotes[msg.Key] = v;
+                    if (v < ChatStableFrames) continue;               // not confident yet
                     RememberChat(msg.Key);
+                    _chatVotes.Remove(msg.Key);
                     _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e => e
                         .With("channel", msg.Channel).With("name", msg.Name).With("text", msg.Text));
                 }
+                // Reset votes for messages that vanished this frame (require CONSECUTIVE sightings,
+                // so one-frame OCR garbage never accumulates enough votes to fire).
+                if (_chatVotes.Count > 0)
+                    foreach (var k in _chatVotes.Keys.Where(k => !seenNow.Contains(k)).ToList())
+                        _chatVotes.Remove(k);
             }
 
             // Party list (lobby): parse OCR lines into structured members, then emit only when the
@@ -251,6 +267,7 @@ namespace WarzoneHelper.Core.Monitors
         {
             _lastHealth = null; _lastDead = false; _lastDeploy = false;
             _deadStreak = _deployStreak = 0;
+            _chatVotes.Clear();
             // keep _lastLobbyId across matches until a new one appears
         }
 
