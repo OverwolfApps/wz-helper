@@ -65,7 +65,7 @@ function onHelperEvent(name, data) {
 }
 
 function broadcast(id, content) {
-  for (const win of ['desktop', 'in_game']) {
+  for (const win of ['desktop', 'in_game', 'players']) {
     overwolf.windows.sendMessage(win, id, content, () => {});
   }
 }
@@ -99,9 +99,11 @@ function wireGep() {
 function main() {
   connect();
   wireGep();
-  overwolf.windows.obtainDeclaredWindow('desktop', (r) => {
-    if (r.status === 'success') overwolf.windows.restore(r.window.id, () => {});
-  });
+  for (const w of ['desktop', 'players']) {
+    overwolf.windows.obtainDeclaredWindow(w, (r) => {
+      if (r.status === 'success') overwolf.windows.restore(r.window.id, () => {});
+    });
+  }
 }
 
 main();

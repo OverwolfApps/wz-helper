@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Players</title>
+  <style>
+    :root { --bg-alpha:0.9; --line:#2a3040; --muted:#8b93a7;
+            --self:#ffcf5a; --squad:#48d597; --enemy:#ff5a6a; --unknown:#9aa3b6; }
+    * { box-sizing:border-box; }
+    html,body { height:100%; }
+    body { margin:0; font-family:'Segoe UI',sans-serif; color:#e6e9f0;
+           background:rgba(16,18,24,var(--bg-alpha)); overflow:hidden; }
+    header { display:flex; align-items:center; gap:8px; padding:8px 12px;
+             background:rgba(27,31,42,var(--bg-alpha)); border-bottom:1px solid var(--line);
+             -webkit-app-region:drag; }
+    header h1 { font-size:13px; margin:0; font-weight:600; }
+    header .spacer { flex:1; }
+    header button { -webkit-app-region:no-drag; background:#242a38; color:#e6e9f0;
+             border:1px solid var(--line); border-radius:5px; padding:3px 7px; cursor:pointer; font-size:11px; }
+    .count { font-size:11px; color:var(--muted); }
+    #list { overflow:auto; height:calc(100vh - 40px); padding:4px 0; }
+    .sec { font-size:10px; text-transform:uppercase; color:var(--muted); padding:6px 12px 2px; letter-spacing:.5px; }
+    .p { display:flex; align-items:center; gap:8px; padding:4px 12px; font-size:12.5px; }
+    .p .lvl { min-width:34px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; }
+    .p .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .p.self .nm { color:var(--self); font-weight:600; }
+    .p.squad .nm { color:var(--squad); }
+    .p.enemy .nm { color:var(--enemy); }
+    .p.unknown .nm { color:var(--unknown); }
+    .p.dead .nm { text-decoration:line-through; opacity:.75; }
+    .p.disconnected { opacity:.45; }
+    .p .st { font-size:10px; color:var(--muted); }
+    .grip { position:fixed; right:0; bottom:0; width:14px; height:14px; cursor:nwse-resize; -webkit-app-region:no-drag; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>👥 Players</h1><span class="count" id="count">0</span>
+    <span class="spacer"></span>
+    <button id="close">✕</button>
+  </header>
+  <div id="list"></div>
+  <div class="grip" id="grip"></div>
+  <script src="../js/players.js"></script>
+</body>
+</html>
