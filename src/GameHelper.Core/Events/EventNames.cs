@@ -24,8 +24,9 @@ namespace GameHelper.Core.Events
         public const string GameProcessStarted = "GAME_PROCESS_STARTED";
         public const string GameProcessStopped = "GAME_PROCESS_STOPPED";
 
-        // --- Activision status API ---
-        public const string GameStatusChanged = "GAME_STATUS_CHANGED";
+        // --- Status API (generic poll; game parses the body) ---
+        public const string StatusResponse = "STATUS_RESPONSE";     // default raw-body event
+        public const string GameStatusChanged = "GAME_STATUS_CHANGED"; // emitted by a game's status parser
 
         // --- Screen / CV derived (ours), plus GEP hints layered on top ---
         public const string MatchStarted = "MATCH_STARTED";

@@ -73,7 +73,7 @@ namespace GameHelper.Core
                 _monitors.Add(new NetworkMonitor(_cfg, _bus, _geo, _proc, udp, home, _match));
             }
 
-            if (_cfg.EnableStatusApi) _monitors.Add(new StatusApiMonitor(_cfg, _bus));
+            if (_cfg.EnableStatusApi) _monitors.Add(new StatusApiMonitor(_cfg, _bus, _profile.CreateStatusParser(_cfg)));
 
             // Shared screen plumbing (frame source + OCR engine) that game monitors read from.
             IOcrEngine ocr = null;

@@ -17,6 +17,9 @@ namespace WarzoneHelper.Game
 
         public HelperConfig CreateDefaultConfig() => new WarzoneConfig();
 
+        public IStatusParser CreateStatusParser(HelperConfig cfg) =>
+            new WarzoneStatusParser(cfg?.StatusGameTitles);
+
         public string PerfStripWhitelist
         {
             get => Game.OcrFields.PerfStripWhitelist;

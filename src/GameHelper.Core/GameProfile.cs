@@ -43,6 +43,10 @@ namespace GameHelper.Core
         /// <summary>The game's perf-strip OCR whitelist (get/set so ocr.jsonc can override it).</summary>
         string PerfStripWhitelist { get; set; }
 
+        /// <summary>Parser for the status-API response body, or null to use the generic raw-body
+        /// default. Lets a game interpret its vendor's status shape without Core knowing it.</summary>
+        IStatusParser CreateStatusParser(HelperConfig cfg);
+
         /// <summary>Build the game-specific monitors (screen analysis, roster, ...).</summary>
         IEnumerable<IMonitor> CreateGameMonitors(GameContext ctx);
     }
