@@ -48,3 +48,6 @@ desktop.ini
 .DS_Store
 *.swp
 *~
+
+# Symlink to the live %APPDATA%\WarzoneHelper config/data (not a real dir; breaks git scans)
+.references/AppdataRoaming
