@@ -66,7 +66,7 @@ namespace WarzoneHelper.Core
             if (_cfg.EnableScreen)
             {
                 IOcrEngine ocr = TryCreateOcr();
-                var analyzer = new WarzoneScreenAnalyzer(_cfg.Regions, ocr);
+                var analyzer = new WarzoneScreenAnalyzer(_cfg.Regions, ocr, _cfg.OcrGrayscaleByValue);
                 IFrameSource source;
                 if (_cfg.SelfCapture)
                 {

@@ -78,6 +78,10 @@ namespace WarzoneHelper.Core.Config
         public int StatusPollMs { get; set; } = 60000;
         public string StatusApiUrl { get; set; } =
             "https://prod-psapi.infra-ext.activision.com/open/api/apexrest/oshp/landingpage";
+        /// <summary>Only status entries whose gameTitle contains one of these (lowercased) are
+        /// counted/logged — the API returns all Activision games (Crash, Skylanders, ...).</summary>
+        public string[] StatusGameTitles { get; set; } =
+            { "warzone", "black ops", "modern warfare", "call of duty" };
 
         // --- Screen CV ---
         public bool EnableScreen { get; set; } = true;
@@ -88,6 +92,9 @@ namespace WarzoneHelper.Core.Config
         /// </summary>
         public bool SelfCapture { get; set; } = true;
         public string TesseractDataDir { get; set; } = "%LOCALAPPDATA%\\WarzoneHelper\\tessdata";
+        /// <summary>Grayscale OCR crops by max(R,G,B) (brightness) instead of luminance, so bright
+        /// colored/animated HUD text (e.g. the rainbow level 1000) reads reliably.</summary>
+        public bool OcrGrayscaleByValue { get; set; } = true;
         /// <summary>Times a value must be read the same way to become "true" (OCR hysteresis).</summary>
         public int ConfidenceEstablish { get; set; } = 2;
         /// <summary>Times a DIFFERENT value must be read in a row to overturn an established one.</summary>

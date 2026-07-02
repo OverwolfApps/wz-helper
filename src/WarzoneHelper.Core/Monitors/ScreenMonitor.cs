@@ -158,8 +158,10 @@ namespace WarzoneHelper.Core.Monitors
                         { "name", m.Name }, { "level", m.Level } }).ToArray();
                     // A large top-right list is the full match/lobby roster, not your party.
                     var name = s.PartyIsMatchList ? EventNames.MatchListChanged : EventNames.PartyListChanged;
+                    // Self position: topmost in the lobby party panel, bottommost in the in-game squad.
+                    int selfIndex = s.PartyIsMatchList ? -1 : (inMatch ? payload.Length - 1 : 0);
                     _bus.Publish(name, EventSource.ScreenCv, e => e
-                        .With("members", payload).With("count", payload.Length));
+                        .With("members", payload).With("count", payload.Length).With("selfIndex", selfIndex));
                 }
             }
 

@@ -32,6 +32,7 @@ namespace WarzoneHelper.Core.Screen
     {
         private readonly ScreenRegions _regions;
         private readonly IOcrEngine _ocr;
+        private readonly bool _grayByValue;
         // Real Warzone lobby/session ids are ~19 digits; require 17-20 to reject HUD numbers.
         private static readonly Regex LobbyIdRegex = new Regex(@"\d{17,20}", RegexOptions.Compiled);
         // Observed lobby ids are 61-63 bit numbers; require bit-length in [60,64] (i.e. 2^59..2^64).
@@ -43,10 +44,11 @@ namespace WarzoneHelper.Core.Screen
         // Below this crop size Tesseract/leptonica prints "Image too small to scale!!" to stderr.
         private const int MinOcrPx = 8;
 
-        public WarzoneScreenAnalyzer(ScreenRegions regions, IOcrEngine ocr)
+        public WarzoneScreenAnalyzer(ScreenRegions regions, IOcrEngine ocr, bool grayscaleByValue = true)
         {
             _regions = regions ?? new ScreenRegions();
             _ocr = ocr ?? new NullOcrEngine();
+            _grayByValue = grayscaleByValue;
         }
 
         public ScreenState Analyze(Bitmap frame, bool inMatch)
@@ -110,6 +112,33 @@ namespace WarzoneHelper.Core.Screen
             return n >= LobbyMin && n < LobbyMax;                              // bit-length in [60,64]
         }
 
+        /// <summary>
+        /// Grayscale by brightness = max(R,G,B) rather than luminance. Bright colored/animated HUD
+        /// text (the rainbow level number) becomes near-white regardless of hue, so Tesseract's
+        /// internal Otsu binarization then separates it cleanly from the darker background.
+        /// </summary>
+        private static Bitmap ToValueGray(Bitmap src)
+        {
+            var rect = new Rectangle(0, 0, src.Width, src.Height);
+            var s = src.Clone(rect, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+            var data = s.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadWrite, s.PixelFormat);
+            try
+            {
+                int bytes = Math.Abs(data.Stride) * s.Height;
+                var buf = new byte[bytes];
+                System.Runtime.InteropServices.Marshal.Copy(data.Scan0, buf, 0, bytes);
+                for (int i = 0; i + 2 < bytes; i += 3)
+                {
+                    byte b = buf[i], g = buf[i + 1], r = buf[i + 2];
+                    byte v = Math.Max(r, Math.Max(g, b));
+                    buf[i] = buf[i + 1] = buf[i + 2] = v;
+                }
+                System.Runtime.InteropServices.Marshal.Copy(buf, 0, data.Scan0, bytes);
+            }
+            finally { s.UnlockBits(data); }
+            return s;
+        }
+
         private static Rectangle ToRect(Bitmap b, double[] r)
         {
             int x = (int)(r[0] * b.Width), y = (int)(r[1] * b.Height);
@@ -127,21 +156,29 @@ namespace WarzoneHelper.Core.Screen
         {
             var rect = ToRect(frame, region);
             if (rect.Width < MinOcrPx || rect.Height < MinOcrPx) return null;
-            using (var crop = frame.Clone(rect, frame.PixelFormat))
+            Bitmap crop = frame.Clone(rect, frame.PixelFormat);
+            try
             {
                 // Aim for ~48px tall text for OCR; upscale thin strips.
                 int scale = rect.Height < 48 ? Math.Min(4, (int)Math.Ceiling(48.0 / rect.Height)) : 1;
-                if (scale <= 1) return _ocr.Read(crop, whitelist, singleLine);
-                using (var big = new Bitmap(rect.Width * scale, rect.Height * scale))
+                if (scale > 1)
                 {
+                    var big = new Bitmap(rect.Width * scale, rect.Height * scale);
                     using (var g = Graphics.FromImage(big))
                     {
                         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                         g.DrawImage(crop, 0, 0, big.Width, big.Height);
                     }
-                    return _ocr.Read(big, whitelist, singleLine);
+                    crop.Dispose(); crop = big;
                 }
+                if (_grayByValue)
+                {
+                    var gray = ToValueGray(crop);
+                    crop.Dispose(); crop = gray;
+                }
+                return _ocr.Read(crop, whitelist, singleLine);
             }
+            finally { crop.Dispose(); }
         }
 
         /// <summary>Health bar: fraction of the bar width that is "filled" (bright, non-dark) pixels.</summary>

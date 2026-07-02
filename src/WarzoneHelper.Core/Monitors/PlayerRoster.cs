@@ -124,12 +124,17 @@ namespace WarzoneHelper.Core.Monitors
         private void OnList(HelperEvent evt, string team)
         {
             if (!(evt.Data.TryGetValue("members", out var m) && m is IEnumerable<object> members)) return;
+            int selfIndex = evt.Data.TryGetValue("selfIndex", out var si) && si != null ? Convert.ToInt32(si) : -1;
+            int i = 0;
             foreach (var item in members)
             {
-                if (!(item is IDictionary<string, object> md)) continue;
+                if (!(item is IDictionary<string, object> md)) { i++; continue; }
                 var name = md.TryGetValue("name", out var n) ? n?.ToString() : null;
                 int? level = md.TryGetValue("level", out var lv) && lv != null ? Convert.ToInt32(lv) : (int?)null;
-                Upsert(name, team, level, evt.Source, statusResetsDisconnect: true);
+                // Self is a fixed position in the party/squad panel (top in lobby, bottom in game).
+                var t = (i == selfIndex) ? "self" : team;
+                Upsert(name, t, level, evt.Source, statusResetsDisconnect: true);
+                i++;
             }
         }
 

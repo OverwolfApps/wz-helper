@@ -56,6 +56,10 @@ namespace WarzoneHelper.Core.Monitors
                     var game = item.Value<string>("gameTitle") ?? "";
                     var platform = item.Value<string>("platform") ?? "";
                     if (game.Length == 0 && platform.Length == 0) continue;
+                    // Only CoD titles — the API also returns Crash, Skylanders, etc.
+                    var titles = _cfg.StatusGameTitles;
+                    if (titles != null && titles.Length > 0 &&
+                        !titles.Any(t => game.ToLowerInvariant().Contains(t))) continue;
                     current[$"{game}|{platform}"] = item;
                 }
 
