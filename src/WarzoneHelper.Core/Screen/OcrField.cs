@@ -28,6 +28,15 @@ namespace WarzoneHelper.Core.Screen
         /// <summary>Optional cleanup applied to the raw text before matching.</summary>
         public Func<string, string> Clean;
 
+        // --- Confidence (frequency voting; see FieldTracker) ---
+        /// <summary>Times this value must be read (within the window, not necessarily consecutively)
+        /// before it's first accepted. Higher = more resistant to OCR noise.</summary>
+        public int Establish = 3;
+        /// <summary>Times a DIFFERENT value must win the window vote to replace an established one.</summary>
+        public int Overturn = 5;
+        /// <summary>Rolling window size (recent valid reads) the vote is tallied over.</summary>
+        public int Window = 14;
+
         /// <summary>Validate + extract, or null if the OCR text doesn't satisfy the spec.</summary>
         public string Parse(string raw)
         {

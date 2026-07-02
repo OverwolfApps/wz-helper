@@ -48,6 +48,11 @@ namespace WarzoneHelper.Core.Screen
 
         private IList<Rectangle> _excluded;
 
+        // Per-field confidence gates (rolling-window vote before a value is set).
+        private readonly FieldTracker _lobbyId = new FieldTracker(OcrFields.LobbyId);
+        private readonly FieldTracker _spectateName = new FieldTracker(OcrFields.PlayerName);
+        private readonly FieldTracker _spectateId = new FieldTracker(OcrFields.SpectateId);
+
         public ScreenState Analyze(Bitmap frame, bool inMatch, IList<Rectangle> excluded = null)
         {
             _excluded = excluded;
@@ -68,7 +73,8 @@ namespace WarzoneHelper.Core.Screen
                 if (perf.Count > 0) s.Perf = perf;
 
                 var lobbyText = ReadRegion(frame, _regions.LobbyId, OcrFields.LobbyId.Whitelist, singleLine: true);
-                s.LobbyId = OcrFields.LobbyId.Parse(lobbyText);   // 18-20 digits, 60-64 bit, not all-same
+                _lobbyId.Observe(lobbyText);       // confidence-gated (validated inside)
+                s.LobbyId = _lobbyId.Value;
 
                 if (inMatch)
                 {
@@ -81,11 +87,9 @@ namespace WarzoneHelper.Core.Screen
                     // Spectating panel (bottom-center) when dead.
                     var spec = ReadRegion(frame, _regions.Spectating, null, singleLine: false);
                     var sm = spec != null ? SpectateRegex.Match(spec) : Match.Empty;
-                    if (sm.Success)
-                    {
-                        s.SpectatingName = OcrFields.PlayerName.Parse(sm.Groups[1].Value);
-                        s.SpectatingId = OcrFields.SpectateId.Parse(spec);
-                    }
+                    if (sm.Success) { _spectateName.Observe(sm.Groups[1].Value); _spectateId.Observe(spec); }
+                    s.SpectatingName = _spectateName.Value;
+                    s.SpectatingId = _spectateId.Value;
                 }
                 else
                 {

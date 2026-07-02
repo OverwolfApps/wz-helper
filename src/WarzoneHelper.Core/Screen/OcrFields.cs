@@ -26,6 +26,8 @@ namespace WarzoneHelper.Core.Screen
             SingleLine = true,
             MinLength = 18,
             MaxLength = 20,
+            // A 19-digit id fails on any single misread digit, so demand high confidence.
+            Establish = 4, Overturn = 8, Window = 24,
             Clean = s => new string(s.Where(char.IsDigit).ToArray()),  // drop OCR spaces/junk
             Pattern = new Regex(@"(?<v>\d{18,20})", RegexOptions.Compiled),
             Validate = v =>
@@ -43,6 +45,7 @@ namespace WarzoneHelper.Core.Screen
             Whitelist = null,           // names vary too much to whitelist; validate by shape
             MinLength = 2,
             MaxLength = 24,
+            Establish = 2, Overturn = 4, Window = 12,
             Reject = Chrome,
             Pattern = null,
             Validate = v =>
@@ -66,6 +69,7 @@ namespace WarzoneHelper.Core.Screen
             Whitelist = "0123456789",
             MinLength = 1,
             MaxLength = 4,
+            Establish = 3, Overturn = 6, Window = 14,   // level number is often misread
             Pattern = new Regex(@"(?<v>\d{1,4})", RegexOptions.Compiled),
             Validate = v => int.TryParse(v, out var n) && n >= 1 && n <= 1000
         };
