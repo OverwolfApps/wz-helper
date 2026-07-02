@@ -37,6 +37,9 @@ namespace WarzoneHelper.Core
 
             _bus.Publish(EventNames.HelperStarted, "core", e => e.With("version", "1.0.0"));
 
+            // Externalized OCR rules (whitelists/patterns/lengths/confidence) from ocr.jsonc.
+            Screen.OcrConfig.LoadOrCreate(Screen.OcrConfig.DefaultPath(), _bus.Log);
+
             // Derive coarse match state from our own CV events + GEP hints, so the NetworkMonitor can
             // stamp/filter game-server events by whether we're actually in a match.
             _bus.OnEvent += UpdateMatchState;
