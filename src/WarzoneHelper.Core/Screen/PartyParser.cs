@@ -21,17 +21,10 @@ namespace WarzoneHelper.Core.Screen
     /// </summary>
     public static class PartyParser
     {
-        // Lines whose (letters-only) form contains any of these are UI chrome, not a player.
-        private static readonly string[] Chrome =
-        {
-            "inviteplayer", "invite", "party", "yoursquad", "online", "viewallfriends", "friends",
-            "weekly", "daily", "rewards", "challenge", "viewall", "available", "tokens", "foes",
-            "battlepass", "operators", "searching", "spectating"
-        };
+        // UI chrome words come from the shared OCR field registry.
+        private static readonly string[] Chrome = OcrFields.Chrome;
 
         private static readonly Regex LeadingLevel = new Regex(@"^\D{0,3}(\d{1,4})\D", RegexOptions.Compiled);
-        // A plausible name has a run of 3+ letters (optionally within a [tag]).
-        private static readonly Regex HasName = new Regex(@"[A-Za-z]{3,}", RegexOptions.Compiled);
 
         public static List<PartyMember> Parse(IEnumerable<string> lines)
         {
@@ -56,13 +49,10 @@ namespace WarzoneHelper.Core.Screen
                 int? level = lv;
                 var rest = line.Substring(m.Index + m.Length - 1); // keep the char after the level
 
-                var name = CleanName(rest);
-                if (name.Length < 3 || !HasName.IsMatch(name)) continue;       // no real name -> skip
-
-                // Reject all-caps UI headers (e.g. "WEEKLY REWARDS", "VIEW ALL FRIENDS"): real
-                // usernames have a lowercase letter, a digit, or a clan tag.
-                if (!name.Any(char.IsLower) && !name.Any(char.IsDigit) && !name.Contains('['))
-                    continue;
+                // Validate the cleaned name against the shared player-name field spec (length,
+                // chrome rejection, real letter run, not all-caps UI text).
+                var name = OcrFields.PlayerName.Parse(CleanName(rest));
+                if (name == null) continue;
 
                 // Identity key is LETTERS-ONLY so frame-to-frame digit jitter (status dots, online
                 // counts) doesn't make an otherwise-stable member look like it changed.
