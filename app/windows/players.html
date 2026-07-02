@@ -20,9 +20,10 @@
     .count { font-size:11px; color:var(--muted); }
     #list { overflow:auto; height:calc(100vh - 40px); padding:4px 0; }
     .sec { font-size:10px; text-transform:uppercase; color:var(--muted); padding:6px 12px 2px; letter-spacing:.5px; }
-    .p { display:flex; align-items:center; gap:8px; padding:4px 12px; font-size:12.5px; }
-    .p .lvl { min-width:34px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; }
-    .p .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .p { display:flex; align-items:center; gap:8px; padding:4px 12px; font-size:12.5px;
+         width:max-content; min-width:100%; }
+    .p .lvl { min-width:34px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; flex:none; }
+    .p .nm { white-space:nowrap; flex:none; }
     .p.self .nm { color:var(--self); font-weight:600; }
     .p.squad .nm { color:var(--squad); }
     .p.enemy .nm { color:var(--enemy); }
@@ -30,8 +31,14 @@
     .p.unknown .nm { color:var(--unknown); }
     .p.dead .nm { text-decoration:line-through; opacity:.75; }
     .p.disconnected { opacity:.45; }
-    .p .st { font-size:10px; color:var(--muted); }
-    .grip { position:fixed; right:0; bottom:0; width:14px; height:14px; cursor:nwse-resize; -webkit-app-region:no-drag; }
+    .p .st { font-size:10px; color:var(--muted); flex:none; white-space:nowrap; }
+    /* Resize handles: edges + bottom-right corner (corner sits on top of the edges). */
+    .rz { position:fixed; -webkit-app-region:no-drag; z-index:10; }
+    .rz.r { top:0; right:0; width:6px; height:100%; cursor:ew-resize; }
+    .rz.l { top:0; left:0; width:6px; height:100%; cursor:ew-resize; }
+    .rz.b { left:0; bottom:0; height:6px; width:100%; cursor:ns-resize; }
+    .grip { position:fixed; right:0; bottom:0; width:14px; height:14px; cursor:nwse-resize;
+            -webkit-app-region:no-drag; z-index:11; }
   </style>
 </head>
 <body>
@@ -42,6 +49,9 @@
     <button id="close">✕</button>
   </header>
   <div id="list"></div>
+  <div class="rz r" data-edge="Right"></div>
+  <div class="rz l" data-edge="Left"></div>
+  <div class="rz b" data-edge="Bottom"></div>
   <div class="grip" id="grip"></div>
   <script src="../js/players.js"></script>
 </body>

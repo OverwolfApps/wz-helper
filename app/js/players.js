@@ -12,6 +12,10 @@ document.getElementById('min').onclick = () => selfWindowId && overwolf.windows.
 document.getElementById('grip').addEventListener('mousedown', () => {
   if (selfWindowId) overwolf.windows.dragResize(selfWindowId, 'BottomRight');
 });
+// Edge handles (left/right/bottom) for resizing from any side, not just the corner.
+document.querySelectorAll('.rz').forEach((h) => h.addEventListener('mousedown', () => {
+  if (selfWindowId) overwolf.windows.dragResize(selfWindowId, h.dataset.edge);
+}));
 
 function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
 applyOpacity(parseInt(localStorage.getItem('wzh_opacity') || '90', 10));
