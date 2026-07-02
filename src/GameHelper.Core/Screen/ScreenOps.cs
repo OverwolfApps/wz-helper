@@ -71,5 +71,37 @@ namespace GameHelper.Core.Screen
         }
 
         public static int Clamp(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);
+
+        /// <summary>Perceptual luminance of a pixel (Rec. 601).</summary>
+        public static double Luminance(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
+
+        /// <summary>Fraction of pixels in <paramref name="rect"/> matching <paramref name="predicate"/>,
+        /// sampling every <paramref name="step"/> px on both axes (step &gt; 1 = faster/coarser).</summary>
+        public static double PixelRatio(Bitmap b, Rectangle rect, System.Func<Color, bool> predicate, int step = 1)
+        {
+            if (step < 1) step = 1;
+            long match = 0, count = 0;
+            for (int y = rect.Y; y < rect.Y + rect.Height; y += step)
+                for (int x = rect.X; x < rect.X + rect.Width; x += step)
+                {
+                    count++;
+                    if (predicate(b.GetPixel(x, y))) match++;
+                }
+            return count == 0 ? 0 : (double)match / count;
+        }
+
+        /// <summary>Fraction of pixels along the horizontal mid-line of <paramref name="rect"/>
+        /// matching <paramref name="predicate"/> (e.g. a health/progress bar fill).</summary>
+        public static double RowRatio(Bitmap b, Rectangle rect, System.Func<Color, bool> predicate)
+        {
+            int midY = rect.Y + rect.Height / 2;
+            int match = 0, total = 0;
+            for (int x = rect.X; x < rect.X + rect.Width; x++)
+            {
+                total++;
+                if (predicate(b.GetPixel(x, midY))) match++;
+            }
+            return total == 0 ? 0 : (double)match / total;
+        }
     }
 }

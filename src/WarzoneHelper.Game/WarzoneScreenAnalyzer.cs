@@ -159,53 +159,20 @@ namespace WarzoneHelper.Game
             finally { crop.Dispose(); }
         }
 
-        /// <summary>Health bar: fraction of the bar width that is "filled" (bright, non-dark) pixels.</summary>
-        private static double EstimateHealth(Bitmap b, Region region)
-        {
-            var rect = ToRect(b, region);
-            int midY = rect.Y + rect.Height / 2;
-            int filled = 0, total = 0;
-            for (int x = rect.X; x < rect.X + rect.Width; x++)
-            {
-                var c = b.GetPixel(x, midY);
-                total++;
-                // Filled HUD bar segments are notably brighter than the dark empty track.
-                double lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
-                if (lum > 90) filled++;
-            }
-            return total == 0 ? 0 : (double)filled / total;
-        }
+        // HUD CV heuristics — thin Warzone wrappers over the generic ScreenOps pixel samplers; only
+        // the region + pixel predicate/threshold are game-specific.
+
+        /// <summary>Health bar: fraction of the bar mid-line that is "filled" (bright vs dark track).</summary>
+        private static double EstimateHealth(Bitmap b, Region region) =>
+            ScreenOps.RowRatio(b, ToRect(b, region), c => ScreenOps.Luminance(c) > 90);
 
         /// <summary>Detects a predominantly red banner (death / damage indicator).</summary>
-        private static bool DetectReddishBanner(Bitmap b, Region region, double minRatio)
-        {
-            var rect = ToRect(b, region);
-            long red = 0, count = 0;
-            for (int y = rect.Y; y < rect.Y + rect.Height; y += 2)
-                for (int x = rect.X; x < rect.X + rect.Width; x += 2)
-                {
-                    var c = b.GetPixel(x, y);
-                    count++;
-                    if (c.R > 110 && c.R > c.G * 1.6 && c.R > c.B * 1.6) red++;
-                }
-            return count > 0 && (double)red / count >= minRatio;
-        }
+        private static bool DetectReddishBanner(Bitmap b, Region region, double minRatio) =>
+            ScreenOps.PixelRatio(b, ToRect(b, region),
+                c => c.R > 110 && c.R > c.G * 1.6 && c.R > c.B * 1.6, step: 2) >= minRatio;
 
         /// <summary>Detects a bright/high-contrast prompt banner (deploy / parachute prompt).</summary>
-        private static bool DetectBrightBanner(Bitmap b, Region region, double minRatio)
-        {
-            var rect = ToRect(b, region);
-            long bright = 0, count = 0;
-            for (int y = rect.Y; y < rect.Y + rect.Height; y += 3)
-                for (int x = rect.X; x < rect.X + rect.Width; x += 3)
-                {
-                    var c = b.GetPixel(x, y);
-                    count++;
-                    double lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
-                    if (lum > 190) bright++;
-                }
-            return count > 0 && (double)bright / count >= minRatio;
-        }
-
+        private static bool DetectBrightBanner(Bitmap b, Region region, double minRatio) =>
+            ScreenOps.PixelRatio(b, ToRect(b, region), c => ScreenOps.Luminance(c) > 190, step: 3) >= minRatio;
     }
 }

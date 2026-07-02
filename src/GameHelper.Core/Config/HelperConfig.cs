@@ -71,6 +71,10 @@ namespace GameHelper.Core.Config
         public bool EnableStatusApi { get; set; } = true;
         public int StatusPollMs { get; set; } = 60000;
         public string StatusApiUrl { get; set; } = "";
+        /// <summary>Extra HTTP headers for outbound API calls (status API). A recent-Chrome
+        /// User-Agent and "Accept: application/json" are sent by default; entries here add or
+        /// override them (e.g. set your own User-Agent, or an auth header).</summary>
+        public Dictionary<string, string> HttpHeaders { get; set; } = new Dictionary<string, string>();
         /// <summary>Only status entries whose gameTitle contains one of these (lowercased) are kept.</summary>
         public string[] StatusGameTitles { get; set; } = Array.Empty<string>();
 

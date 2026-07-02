@@ -9,6 +9,7 @@ using GameHelper.Core.Events;
 
 using GameHelper.Core.Monitors;
 using GameHelper.Core.Text;
+using GameHelper.Core.Util;
 namespace WarzoneHelper.Game
 {
     /// <summary>
@@ -91,17 +92,12 @@ namespace WarzoneHelper.Game
         // ---- persistence ----
         private void Load()
         {
-            try
+            var cf = JsonFile.Load<CacheFile>(_cachePath);
+            if (cf?.players != null)
             {
-                if (File.Exists(_cachePath))
-                {
-                    var cf = JsonConvert.DeserializeObject<CacheFile>(File.ReadAllText(_cachePath));
-                    if (cf?.players != null)
-                        foreach (var p in cf.players) { Index(p); }
-                    _bus.Log($"[roster] loaded {_all.Count} cached players");
-                }
+                foreach (var p in cf.players) Index(p);
+                _bus.Log($"[roster] loaded {_all.Count} cached players");
             }
-            catch (Exception ex) { _bus.Log($"[roster] load error: {ex.Message}"); }
         }
 
         private void Save()
@@ -109,11 +105,9 @@ namespace WarzoneHelper.Game
             try
             {
                 _dirty = false;
-                var dir = Path.GetDirectoryName(_cachePath);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 List<Player> snapshot;
                 lock (_lock) snapshot = _all.Where(p => p.Confirmed).ToList();
-                File.WriteAllText(_cachePath, JsonConvert.SerializeObject(new CacheFile { players = snapshot }, Formatting.None));
+                JsonFile.SaveMinified(_cachePath, new CacheFile { players = snapshot });
             }
             catch (Exception ex) { _bus.Log($"[roster] save error: {ex.Message}"); }
         }
@@ -165,7 +159,7 @@ namespace WarzoneHelper.Game
                     case EventNames.GameServerDisconnected: OnServer(evt, false); break;
                     case EventNames.PartyListChanged: OnList(evt, "squad"); break;
                     case EventNames.MatchListChanged: OnList(evt, "unknown"); break;
-                    case EventNames.ChatMessage: Observe(Get(evt, "name"), "enemy", null, "chat"); break;
+                    case EventNames.ChatMessage: Observe(evt.Str("name"), "enemy", null, "chat"); break;
                     case EventNames.KillfeedEntry: OnKillfeed(evt); break;
                     case EventNames.PlayerInspected: OnInspect(evt); break;
                 }
@@ -175,7 +169,7 @@ namespace WarzoneHelper.Game
 
         private void OnServer(HelperEvent evt, bool connected)
         {
-            var ep = $"{Get(evt, "ip")}:{Get(evt, "port")}";
+            var ep = $"{evt.Str("ip")}:{evt.Str("port")}";
             lock (_lock)
             {
                 if (connected)
@@ -231,21 +225,21 @@ namespace WarzoneHelper.Game
 
         private void OnKillfeed(HelperEvent evt)
         {
-            var ev = Get(evt, "event");
+            var ev = evt.Str("event");
             if (!string.IsNullOrWhiteSpace(ev))
             {
-                var p = Observe(Get(evt, "player"), "enemy", null, "eventlog");
+                var p = Observe(evt.Str("player"), "enemy", null, "eventlog");
                 if (p != null) SetField(p, () => { p.Status = "disconnected"; if (ev == "banned") p.Banned = true; });
                 return;
             }
-            Observe(Get(evt, "killer"), "enemy", null, "killfeed");
-            var v = Observe(Get(evt, "victim"), "enemy", null, "killfeed");
+            Observe(evt.Str("killer"), "enemy", null, "killfeed");
+            var v = Observe(evt.Str("victim"), "enemy", null, "killfeed");
             if (v != null) SetField(v, () => v.Status = "dead");
         }
 
         private void OnInspect(HelperEvent evt)
         {
-            var actId = Get(evt, "activisionId");
+            var actId = evt.Str("activisionId");
             if (string.IsNullOrEmpty(actId)) return;
             // Inspected player has no name in the panel we parse reliably; key by Activision id.
             Player p; bool joined = false;
@@ -332,8 +326,5 @@ namespace WarzoneHelper.Game
 
         private void Emit(string name, Player p) =>
             _bus.Publish(name, EventSource.ScreenCv, e => { foreach (var kv in p.ToDict()) e.With(kv.Key, kv.Value); });
-
-        private static string Get(HelperEvent e, string k) =>
-            e.Data != null && e.Data.TryGetValue(k, out var v) ? v?.ToString() : null;
     }
 }

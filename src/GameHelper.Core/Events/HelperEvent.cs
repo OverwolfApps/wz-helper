@@ -42,6 +42,11 @@ namespace GameHelper.Core.Events
             return this;
         }
 
+        /// <summary>Read a data field as a string, or null if absent. Convenience for monitors that
+        /// consume events off the bus.</summary>
+        public string Str(string key) =>
+            Data != null && Data.TryGetValue(key, out var v) ? v?.ToString() : null;
+
         public string ToJson()
         {
             return JsonConvert.SerializeObject(this);

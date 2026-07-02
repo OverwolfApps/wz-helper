@@ -13,29 +13,23 @@ namespace WarzoneHelper.Game
     /// </summary>
     public static class PerfParser
     {
+        // Perf fields, each keyed by its own Name (fps, gameLatencyMs, packetLossPct, ...). Plain
+        // LATENCY is handled separately (below) so GAME LATENCY can't be double-counted.
+        private static readonly OcrField[] Fields =
+        {
+            OcrFields.Fps, OcrFields.GameLatency, OcrFields.PacketLoss,
+            OcrFields.GpuTemp, OcrFields.VramPct, OcrFields.Clock,
+        };
+
         public static Dictionary<string, object> Parse(string text)
         {
-            var d = new Dictionary<string, object>();
+            var d = MetricParser.Parse(text, Fields);
             if (string.IsNullOrWhiteSpace(text)) return d;
-
-            AddInt(d, "fps", OcrFields.Fps, text);
-            AddInt(d, "gameLatencyMs", OcrFields.GameLatency, text);
             // Strip GAME LATENCY before matching plain LATENCY so it isn't double-counted.
             var noGame = OcrFields.GameLatency.Pattern.Replace(text, "");
-            AddInt(d, "latencyMs", OcrFields.Latency, noGame);
-            AddInt(d, "packetLossPct", OcrFields.PacketLoss, text);
-            AddInt(d, "gpuTemp", OcrFields.GpuTemp, text);
-            AddInt(d, "vramPct", OcrFields.VramPct, text);
-
-            var clock = OcrFields.Clock.Parse(text);
-            if (clock != null) d["clock"] = clock;
+            var lat = OcrFields.Latency.Parse(noGame);
+            if (lat != null && int.TryParse(lat, out var n)) d[OcrFields.Latency.Name] = n;
             return d;
-        }
-
-        private static void AddInt(Dictionary<string, object> d, string key, OcrField field, string text)
-        {
-            var v = field.Parse(text);   // label-aware pattern + range validation
-            if (v != null && int.TryParse(v, out var n)) d[key] = n;
         }
     }
 }
