@@ -40,8 +40,7 @@ namespace WarzoneHelper.Core.Screen
                 if (ev.Success)
                 {
                     // "<player> Disconnected" — the player is the text before the keyword.
-                    var before = line.Substring(0, ev.Index).Trim();
-                    var pl = FirstName(before);
+                    var pl = OcrFields.PlayerName.Parse(FirstName(line.Substring(0, ev.Index).Trim()));
                     if (pl != null)
                         Add(items, new FeedItem { Type = "event", Player = pl, Event = ev.Groups[1].Value.ToLowerInvariant() });
                     continue;
@@ -50,7 +49,14 @@ namespace WarzoneHelper.Core.Screen
                 var names = NameChunk.Matches(line).Cast<Match>().Select(m => m.Value.Trim())
                     .Where(n => Norm(n).Length >= 3).ToList();
                 if (names.Count >= 2)
-                    Add(items, new FeedItem { Type = "kill", Killer = names.First(), Victim = names.Last() });
+                {
+                    // Validate both names via the shared field; drop the entry if the victim (the enemy
+                    // we add to the roster) doesn't look like a real name.
+                    var killer = OcrFields.PlayerName.Parse(names.First()) ?? names.First();
+                    var victim = OcrFields.PlayerName.Parse(names.Last());
+                    if (victim != null)
+                        Add(items, new FeedItem { Type = "kill", Killer = killer, Victim = victim });
+                }
             }
             return items;
         }

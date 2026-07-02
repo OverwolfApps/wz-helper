@@ -12,38 +12,29 @@ namespace WarzoneHelper.Core.Screen
     /// </summary>
     public static class PerfParser
     {
-        private static readonly Regex Fps        = new Regex(@"FPS[:\s]+(\d{1,4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex GameLatency= new Regex(@"GAME\s*LATENCY[:\s]+(\d{1,4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex Latency    = new Regex(@"(?<!GAME[ \t])LATENCY[:\s]+(\d{1,4})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex PacketLoss = new Regex(@"PACKET\s*LOSS[:\s]+(\d{1,3})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex Gpu        = new Regex(@"GPU[:\s]+(\d{1,3})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex Vram       = new Regex(@"VRAM\s*USAGE[:\s]+(\d{1,3})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex Clock      = new Regex(@"\b([0-2]?\d:[0-5]\d)\b", RegexOptions.Compiled);
-
         public static Dictionary<string, object> Parse(string text)
         {
             var d = new Dictionary<string, object>();
             if (string.IsNullOrWhiteSpace(text)) return d;
 
-            AddInt(d, "fps", Fps, text, 1, 1000);
-            AddInt(d, "gameLatencyMs", GameLatency, text, 0, 2000);
+            AddInt(d, "fps", OcrFields.Fps, text);
+            AddInt(d, "gameLatencyMs", OcrFields.GameLatency, text);
             // Strip GAME LATENCY before matching plain LATENCY so it isn't double-counted.
-            var noGame = GameLatency.Replace(text, "");
-            AddInt(d, "latencyMs", Latency, noGame, 0, 2000);
-            AddInt(d, "packetLossPct", PacketLoss, text, 0, 100);
-            AddInt(d, "gpuTemp", Gpu, text, 0, 130);
-            AddInt(d, "vramPct", Vram, text, 0, 100);
+            var noGame = OcrFields.GameLatency.Pattern.Replace(text, "");
+            AddInt(d, "latencyMs", OcrFields.Latency, noGame);
+            AddInt(d, "packetLossPct", OcrFields.PacketLoss, text);
+            AddInt(d, "gpuTemp", OcrFields.GpuTemp, text);
+            AddInt(d, "vramPct", OcrFields.VramPct, text);
 
-            var c = Clock.Match(text);
-            if (c.Success) d["clock"] = c.Groups[1].Value;
+            var clock = OcrFields.Clock.Parse(text);
+            if (clock != null) d["clock"] = clock;
             return d;
         }
 
-        private static void AddInt(Dictionary<string, object> d, string key, Regex rx, string text, int lo, int hi)
+        private static void AddInt(Dictionary<string, object> d, string key, OcrField field, string text)
         {
-            var m = rx.Match(text);
-            if (m.Success && int.TryParse(m.Groups[1].Value, out var v) && v >= lo && v <= hi)
-                d[key] = v;
+            var v = field.Parse(text);   // label-aware pattern + range validation
+            if (v != null && int.TryParse(v, out var n)) d[key] = n;
         }
     }
 }

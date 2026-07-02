@@ -62,6 +62,34 @@ namespace WarzoneHelper.Core.Screen
             Pattern = new Regex(@"([A-Za-z0-9_\-\[\] ]{3,})#(?<v>\d{3,})", RegexOptions.Compiled)
         };
 
+        // --- Top telemetry overlay metrics (label-aware patterns + sane numeric ranges) ---
+        private static OcrField Metric(string name, string pattern, int lo, int hi) => new OcrField
+        {
+            Name = name,
+            Pattern = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            MinLength = 1, MaxLength = 5,
+            Validate = v => int.TryParse(v, out var n) && n >= lo && n <= hi
+        };
+        public static readonly OcrField Fps         = Metric("fps",           @"FPS[:\s]+(?<v>\d{1,4})", 1, 1000);
+        public static readonly OcrField GameLatency = Metric("gameLatencyMs", @"GAME\s*LATENCY[:\s]+(?<v>\d{1,4})", 0, 2000);
+        public static readonly OcrField Latency     = Metric("latencyMs",     @"(?<!GAME[ \t])LATENCY[:\s]+(?<v>\d{1,4})", 0, 2000);
+        public static readonly OcrField PacketLoss  = Metric("packetLossPct", @"PACKET\s*LOSS[:\s]+(?<v>\d{1,3})", 0, 100);
+        public static readonly OcrField GpuTemp     = Metric("gpuTemp",       @"GPU[:\s]+(?<v>\d{1,3})", 0, 130);
+        public static readonly OcrField VramPct     = Metric("vramPct",       @"VRAM\s*USAGE[:\s]+(?<v>\d{1,3})", 0, 100);
+        public static readonly OcrField Clock       = new OcrField
+        {
+            Name = "clock", MinLength = 3, MaxLength = 5,
+            Pattern = new Regex(@"(?<v>[0-2]?\d:[0-5]\d)", RegexOptions.Compiled)
+        };
+
+        /// <summary>Chat channel tag: MATCH / PARTY / SQUAD / ALL.</summary>
+        public static readonly OcrField ChatChannel = new OcrField
+        {
+            Name = "chatChannel", MinLength = 3, MaxLength = 5,
+            Pattern = new Regex(@"(?<v>MATCH|PARTY|SQUAD|ALL)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            Clean = s => s.ToUpperInvariant()
+        };
+
         /// <summary>A small non-negative count/level, 0-9999 (digits only).</summary>
         public static readonly OcrField Level = new OcrField
         {

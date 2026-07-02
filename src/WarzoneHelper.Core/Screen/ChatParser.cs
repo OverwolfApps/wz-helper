@@ -49,10 +49,13 @@ namespace WarzoneHelper.Core.Screen
                     var text = string.Join(" ", body).Trim();
                     if (text.Length > 0 && HasLetters(name + text))
                     {
+                        var cleanName = Clean(name);
                         var msg = new ChatMessage
                         {
-                            Channel = channel.ToUpperInvariant(),
-                            Name = Clean(name),
+                            // Validated channel + player-name via the shared field specs (fall back to
+                            // the cleaned raw name so a hard-to-OCR name never drops a real message).
+                            Channel = OcrFields.ChatChannel.Parse(channel) ?? channel.ToUpperInvariant(),
+                            Name = OcrFields.PlayerName.Parse(cleanName) ?? cleanName,
                             Text = text
                         };
                         msg.Key = Norm(msg.Channel + msg.Name + msg.Text);
