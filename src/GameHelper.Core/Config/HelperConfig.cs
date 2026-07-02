@@ -22,6 +22,11 @@ namespace GameHelper.Core.Config
         public string[] WatchFilters { get; set; } = { "*.log", "*.txt", "*.json", "*.ndjson" };
         /// <summary>Debounce for noisy filesystem events, milliseconds.</summary>
         public int WatchDebounceMs { get; set; } = 400;
+        /// <summary>Optional regexes tried against each appended log line; the FIRST that matches
+        /// contributes its NAMED capture groups (e.g. (?&lt;timestamp&gt;...), (?&lt;level&gt;...),
+        /// (?&lt;message&gt;...)) as fields on the LOG_LINE_ADDED event, so consumers get the line
+        /// pre-parsed. Empty = raw lines only.</summary>
+        public string[] LogLinePatterns { get; set; } = Array.Empty<string>();
 
         // --- Network ---
         public int NetworkPollMs { get; set; } = 1000;

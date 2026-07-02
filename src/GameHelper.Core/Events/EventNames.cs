@@ -12,8 +12,9 @@ namespace GameHelper.Core.Events
         public const string HelperError = "HELPER_ERROR";
 
         // --- Logs / cache directory watching ---
-        public const string LogFileChanged = "LOG_FILE_CHANGED";
-        public const string CacheChanged = "CACHE_CHANGED";
+        public const string LogFileAdded = "LOG_FILE_ADDED";       // a watched file appeared
+        public const string LogFileRemoved = "LOG_FILE_REMOVED";   // a watched file was deleted/renamed away
+        public const string LogLineAdded = "LOG_LINE_ADDED";       // { path, line, + named regex groups }
 
         // --- Network (cod.exe connection tracking) ---
         public const string GameServerConnected = "GAME_SERVER_CONNECTED";

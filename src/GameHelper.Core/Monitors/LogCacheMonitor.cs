@@ -2,16 +2,20 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
+using System.Linq;
+using System.Text.RegularExpressions;
 using GameHelper.Core.Config;
 using GameHelper.Core.Events;
 
 namespace GameHelper.Core.Monitors
 {
     /// <summary>
-    /// Watches Warzone log/cache directories with FileSystemWatcher and emits
-    /// LOG_FILE_CHANGED / CACHE_CHANGED (debounced). For .log/.txt files it also tails
-    /// newly appended lines so consumers can react to log content, not just file mtime.
+    /// Watches the configured log/cache directories with FileSystemWatcher and emits generic,
+    /// game-agnostic events: LOG_FILE_ADDED / LOG_FILE_REMOVED when watched files appear/disappear,
+    /// and LOG_LINE_ADDED { path, line } for each newly appended (non-empty) line. When the config
+    /// supplies LogLinePatterns, the first regex that matches a line contributes its named capture
+    /// groups (timestamp, level, message, ...) as fields on the event, so consumers get pre-parsed
+    /// lines. Game profiles decide which directories/filters/patterns apply.
     /// </summary>
     public sealed class LogCacheMonitor : IMonitor
     {
@@ -20,6 +24,7 @@ namespace GameHelper.Core.Monitors
         private readonly List<FileSystemWatcher> _watchers = new List<FileSystemWatcher>();
         private readonly ConcurrentDictionary<string, DateTime> _lastFired = new ConcurrentDictionary<string, DateTime>();
         private readonly ConcurrentDictionary<string, long> _offsets = new ConcurrentDictionary<string, long>();
+        private Regex[] _linePatterns = Array.Empty<Regex>();
 
         public string Name => "logwatch";
 
@@ -27,6 +32,15 @@ namespace GameHelper.Core.Monitors
 
         public void Start()
         {
+            _linePatterns = (_cfg.LogLinePatterns ?? Array.Empty<string>())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p =>
+                {
+                    try { return new Regex(p, RegexOptions.Compiled); }
+                    catch (Exception ex) { _bus.Log($"[logwatch] bad LogLinePattern '{p}': {ex.Message}"); return null; }
+                })
+                .Where(r => r != null).ToArray();
+
             foreach (var path in _cfg.ExpandedWatchPaths())
             {
                 try
@@ -44,7 +58,8 @@ namespace GameHelper.Core.Monitors
                         EnableRaisingEvents = true
                     };
                     w.Changed += OnChanged;
-                    w.Created += OnChanged;
+                    w.Created += OnCreated;
+                    w.Deleted += OnDeleted;
                     w.Renamed += OnRenamed;
                     _watchers.Add(w);
                     _bus.Log($"[logwatch] watching {path}");
@@ -76,42 +91,91 @@ namespace GameHelper.Core.Monitors
             return false;
         }
 
-        private void OnRenamed(object sender, RenamedEventArgs e) => OnChanged(sender, e);
-
-        private void OnChanged(object sender, FileSystemEventArgs e)
+        private void OnCreated(object sender, FileSystemEventArgs e)
         {
             try
             {
-                if (Directory.Exists(e.FullPath)) return;
+                if (Directory.Exists(e.FullPath) || !Matches(e.FullPath)) return;
+                _bus.Publish(EventNames.LogFileAdded, EventSource.FileWatch, x => x.With("path", e.FullPath));
+                _offsets[e.FullPath] = 0;          // tail this new file from the start
+                EmitAppendedLines(e.FullPath);
+            }
+            catch (Exception ex) { _bus.Log($"[logwatch] {ex.Message}"); }
+        }
+
+        private void OnDeleted(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
                 if (!Matches(e.FullPath)) return;
-                if (Debounced(e.FullPath)) return;
+                _bus.Publish(EventNames.LogFileRemoved, EventSource.FileWatch, x => x.With("path", e.FullPath));
+                _offsets.TryRemove(e.FullPath, out _);
+                _lastFired.TryRemove(e.FullPath, out _);
+            }
+            catch (Exception ex) { _bus.Log($"[logwatch] {ex.Message}"); }
+        }
 
-                bool isCache = e.FullPath.IndexOf("cache", StringComparison.OrdinalIgnoreCase) >= 0;
-                var appended = new List<string>(TailNewLines(e.FullPath));
-
-                _bus.Publish(new HelperEvent(isCache ? EventNames.CacheChanged : EventNames.LogFileChanged,
-                        EventSource.FileWatch)
-                    .With("path", e.FullPath)
-                    .With("changeType", e.ChangeType.ToString())
-                    .With("appendedLineCount", appended.Count));
-
-                // Emit one event per appended line so consumers can pattern-match log content.
-                foreach (var line in appended)
+        private void OnRenamed(object sender, RenamedEventArgs e)
+        {
+            try
+            {
+                if (Matches(e.OldFullPath))
                 {
-                    _bus.Publish(EventNames.LogFileChanged, EventSource.FileWatch, x => x
-                        .With("path", e.FullPath).With("line", line));
+                    _bus.Publish(EventNames.LogFileRemoved, EventSource.FileWatch, x => x.With("path", e.OldFullPath));
+                    _offsets.TryRemove(e.OldFullPath, out _);
+                    _lastFired.TryRemove(e.OldFullPath, out _);
+                }
+                if (!Directory.Exists(e.FullPath) && Matches(e.FullPath))
+                {
+                    _bus.Publish(EventNames.LogFileAdded, EventSource.FileWatch, x => x.With("path", e.FullPath));
+                    _offsets[e.FullPath] = 0;
+                    EmitAppendedLines(e.FullPath);
                 }
             }
             catch (Exception ex) { _bus.Log($"[logwatch] {ex.Message}"); }
         }
 
-        /// <summary>Reads bytes appended since we last saw this file. Empty for non-text/binary churn.</summary>
+        private void OnChanged(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
+                if (Directory.Exists(e.FullPath) || !Matches(e.FullPath)) return;
+                if (Debounced(e.FullPath)) return;
+                EmitAppendedLines(e.FullPath);
+            }
+            catch (Exception ex) { _bus.Log($"[logwatch] {ex.Message}"); }
+        }
+
+        /// <summary>Emit one LOG_LINE_ADDED per newly appended, non-empty line (with parsed groups).</summary>
+        private void EmitAppendedLines(string path)
+        {
+            foreach (var line in TailNewLines(path))
+            {
+                var evt = new HelperEvent(EventNames.LogLineAdded, EventSource.FileWatch)
+                    .With("path", path).With("line", line);
+                foreach (var re in _linePatterns)
+                {
+                    var m = re.Match(line);
+                    if (!m.Success) continue;
+                    foreach (var g in re.GetGroupNames())
+                        if (!int.TryParse(g, out _))          // named groups only (skip numeric indices)
+                        {
+                            var grp = m.Groups[g];
+                            if (grp.Success) evt.With(g, grp.Value);
+                        }
+                    break;                                    // first matching pattern wins
+                }
+                _bus.Publish(evt);
+            }
+        }
+
+        /// <summary>Reads text lines appended since we last saw this file. Empty for non-text/binary churn.</summary>
         private IEnumerable<string> TailNewLines(string file)
         {
             var ext = Path.GetExtension(file).ToLowerInvariant();
             if (ext != ".log" && ext != ".txt" && ext != ".ndjson") yield break;
 
-            List<string> lines = new List<string>();
+            var lines = new List<string>();
             try
             {
                 using (var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -123,7 +187,7 @@ namespace GameHelper.Core.Monitors
                     {
                         string l;
                         while ((l = sr.ReadLine()) != null)
-                            if (l.Length > 0) lines.Add(l);
+                            if (!string.IsNullOrWhiteSpace(l)) lines.Add(l);
                     }
                     _offsets[file] = fs.Length;
                 }

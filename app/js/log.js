@@ -8,7 +8,8 @@ const ALL_EVENTS = [
   'GAME_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
   'DEPLOYED','HEALTH_CHANGED','PLAYER_DEAD','LOBBY_ID_CHANGED','CHAT_MESSAGE',
   'PARTY_LIST_CHANGED','MATCH_LIST_CHANGED','SPECTATING_PLAYER','PERF_STATS','KILLFEED_ENTRY',
-  'PARTY_CODE_CHANGED','PLAYER_INSPECTED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED','LOG_FILE_CHANGED','CACHE_CHANGED',
+  'PARTY_CODE_CHANGED','PLAYER_INSPECTED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED',
+  'LOG_FILE_ADDED','LOG_FILE_REMOVED','LOG_LINE_ADDED',
 ];
 const NAME_CLASS = {
   GAME_SERVER_CONNECTED:'game', GAME_SERVER_DISCONNECTED:'game', SERVICE_CONNECTED:'svc',
@@ -112,6 +113,7 @@ function summarize(name, d) {
   if (name === 'HEALTH_CHANGED') return `health ${Math.round((d.health||0)*100)}%`;
   if (name === 'LOBBY_ID_CHANGED') return `lobby ${d.lobbyId}`;
   if (name === 'GAME_STATUS_CHANGED') return d.ok ? 'all OK' : (d.activeIssues!=null ? `${d.activeIssues} issue(s)` : `${d.gameTitle}: ${d.change}`);
-  if (name === 'LOG_FILE_CHANGED') return d.line ? d.line.slice(0,160) : (d.path||'');
+  if (name === 'LOG_LINE_ADDED') return (d.level ? `[${d.level}] ` : '') + (d.line ? d.line.slice(0,160) : '');
+  if (name === 'LOG_FILE_ADDED' || name === 'LOG_FILE_REMOVED') return d.path || '';
   return JSON.stringify(d).slice(0,160);
 }
