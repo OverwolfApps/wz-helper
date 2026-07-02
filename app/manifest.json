@@ -13,6 +13,8 @@
   },
   "permissions": [
     "GameInfo",
+    "Media",
+    "Screenshot",
     "Web",
     "Tray"
   ],

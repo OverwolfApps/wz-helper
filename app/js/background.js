@@ -11,6 +11,7 @@ const EVENT_BUFFER_MAX = 500;
 const RECONNECT_MS = 3000;
 
 const GEP_QUEUE_MAX = 100;
+const FRAME_INTERVAL_MS = 800;   // how often we push a game frame to the agent for OCR
 
 const state = {
   ws: null,
@@ -18,6 +19,8 @@ const state = {
   events: [],
   reconnectTimer: null,
   gepQueue: [],   // GEP hints captured while the socket is down, flushed on connect
+  frameTimer: null,
+  frameBusy: false,
 };
 window.wzh = state; // UI windows read recent events via overwolf.windows.getMainWindow()
 
@@ -96,9 +99,42 @@ function wireGep() {
   } catch (e) { console.warn('[wzh] gep register failed', e); }
 }
 
+// --- Game-only frame capture -> agent -----------------------------------------------------
+// Overwolf's screenshot API captures the GAME surface, NOT our overlay windows, so the agent
+// OCRs the game only (no feedback loop from our own overlays). GDI on the agent would grab them.
+function startFramePush() {
+  if (state.frameTimer) return;
+  state.frameTimer = setInterval(captureAndPush, FRAME_INTERVAL_MS);
+}
+
+function captureAndPush() {
+  if (!state.connected || !state.ws || state.frameBusy) return;
+  state.frameBusy = true;
+  try {
+    overwolf.media.getScreenshotUrl({ roundAwayFromZero: false }, (res) => {
+      if (!res || res.status !== 'success' || !res.url) { state.frameBusy = false; return; }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          if (state.connected && state.ws && state.ws.readyState === WebSocket.OPEN)
+            state.ws.send(JSON.stringify({ type: 'frame', data: dataUrl }));
+        } catch (e) { /* skip frame */ }
+        state.frameBusy = false;
+      };
+      img.onerror = () => { state.frameBusy = false; };
+      img.src = res.url;
+    });
+  } catch (e) { state.frameBusy = false; }
+}
+
 function main() {
   connect();
   wireGep();
+  startFramePush();
   for (const w of ['desktop', 'players']) {
     overwolf.windows.obtainDeclaredWindow(w, (r) => {
       if (r.status === 'success') overwolf.windows.restore(r.window.id, () => {});

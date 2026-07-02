@@ -27,6 +27,7 @@ namespace WarzoneHelper.Core.Net
         private readonly int _port;
         private readonly Action<string> _log;
         private readonly Action<string, string> _onGep;   // (gepName, data)
+        private readonly Action<byte[]> _onFrame;         // pushed game frame (decoded png/jpg bytes)
 
         private HttpListener _listener;
         private CancellationTokenSource _cts;
@@ -43,12 +44,14 @@ namespace WarzoneHelper.Core.Net
         private readonly object _backlogLock = new object();
         private const int BacklogMax = 200;
 
-        public EventWebSocketServer(string host, int port, Action<string> log, Action<string, string> onGep)
+        public EventWebSocketServer(string host, int port, Action<string> log,
+            Action<string, string> onGep, Action<byte[]> onFrame = null)
         {
             _host = string.IsNullOrEmpty(host) ? "127.0.0.1" : host;
             _port = port;
             _log = log;
             _onGep = onGep;
+            _onFrame = onFrame;
         }
 
         public void Start()
@@ -101,15 +104,23 @@ namespace WarzoneHelper.Core.Net
 
             try
             {
-                var buffer = new byte[8192];
+                var buffer = new byte[64 * 1024];
                 while (client.Socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
                 {
-                    var result = await client.Socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
-                    if (result.MessageType == WebSocketMessageType.Close) break;
-                    if (result.MessageType != WebSocketMessageType.Text) continue;
+                    // Frames can exceed one buffer, so accumulate until EndOfMessage.
+                    using (var ms = new System.IO.MemoryStream())
+                    {
+                        WebSocketReceiveResult result;
+                        do
+                        {
+                            result = await client.Socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
+                            if (result.MessageType == WebSocketMessageType.Close) return;
+                            ms.Write(buffer, 0, result.Count);
+                        } while (!result.EndOfMessage);
 
-                    var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    HandleInbound(client, text);
+                        if (result.MessageType == WebSocketMessageType.Text)
+                            HandleInbound(client, Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length));
+                    }
                 }
             }
             catch { /* client dropped */ }
@@ -130,6 +141,15 @@ namespace WarzoneHelper.Core.Net
                 {
                     case "gep":
                         _onGep?.Invoke(o.Value<string>("name"), o.Value<string>("data"));
+                        break;
+                    case "frame":
+                        if (_onFrame != null)
+                        {
+                            var b64 = o.Value<string>("data") ?? "";
+                            var comma = b64.IndexOf("base64,", StringComparison.OrdinalIgnoreCase);
+                            if (comma >= 0) b64 = b64.Substring(comma + 7);
+                            try { _onFrame(Convert.FromBase64String(b64)); } catch { }
+                        }
                         break;
                     case "hello":
                         string[] snapshot;

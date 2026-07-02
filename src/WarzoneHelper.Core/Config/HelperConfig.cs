@@ -87,10 +87,11 @@ namespace WarzoneHelper.Core.Config
         public bool EnableScreen { get; set; } = true;
         public int ScreenPollMs { get; set; } = 1000;
         /// <summary>
-        /// When true, the plugin captures frames itself (standalone/console).
-        /// When false, it waits for frames pushed in from Overwolf's in-memory screenshot API.
+        /// When true, capture frames via GDI (standalone) — but this also grabs any overlay windows
+        /// on top of the game. When false (default), the Overwolf app captures the GAME ONLY via its
+        /// screenshot API and pushes frames over the WebSocket, so our own overlays aren't OCR'd.
         /// </summary>
-        public bool SelfCapture { get; set; } = true;
+        public bool SelfCapture { get; set; } = false;
         public string TesseractDataDir { get; set; } = "%LOCALAPPDATA%\\WarzoneHelper\\tessdata";
         /// <summary>Grayscale OCR crops by max(R,G,B) (brightness) instead of luminance, so bright
         /// colored/animated HUD text (e.g. the rainbow level 1000) reads reliably.</summary>

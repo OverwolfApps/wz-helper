@@ -89,9 +89,15 @@ namespace WarzoneHelper.Core
 
             if (cfg.EnableWebSocket)
             {
+                bool loggedFrame = false;
                 ws = new WarzoneHelper.Core.Net.EventWebSocketServer(
                     cfg.WebSocketHost, cfg.WebSocketPort, core.Bus.Log,
-                    (name, data) => core.ReportGepEvent(name, data));
+                    (name, data) => core.ReportGepEvent(name, data),
+                    frameBytes =>
+                    {
+                        if (!loggedFrame) { loggedFrame = true; core.Bus.Log($"[frame] receiving game frames from Overwolf ({frameBytes.Length} bytes)"); }
+                        core.PushFrame(frameBytes);
+                    });
                 ws.Start();
             }
 
