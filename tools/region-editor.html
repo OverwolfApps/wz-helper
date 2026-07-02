@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Warzone Helper — Region Editor</title>
+<style>
+  body { margin:0; font-family:'Segoe UI',sans-serif; background:#0e1016; color:#e6e9f0; }
+  header { display:flex; gap:10px; align-items:center; padding:8px 12px; background:#1b1f2a; border-bottom:1px solid #2a3040; flex-wrap:wrap; }
+  header h1 { font-size:14px; margin:0 12px 0 0; }
+  button, label.btn { background:#242a38; color:#e6e9f0; border:1px solid #2a3040; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; }
+  button:hover { background:#2c3446; }
+  .main { display:flex; gap:0; height:calc(100vh - 47px); }
+  #stage { position:relative; flex:1; overflow:auto; background:#000; }
+  #wrap { position:relative; }
+  #img { display:block; max-width:none; }
+  .region { position:absolute; border:1.5px solid #48d597; background:rgba(72,213,151,.12); box-sizing:border-box; cursor:move; }
+  .region.sel { border-color:#ffcf5a; background:rgba(255,207,90,.16); z-index:5; }
+  .region .lbl { position:absolute; top:-16px; left:0; font-size:10px; color:#48d597; white-space:nowrap; background:rgba(0,0,0,.5); padding:0 3px; }
+  .region.sel .lbl { color:#ffcf5a; }
+  .region .rz { position:absolute; right:-5px; bottom:-5px; width:11px; height:11px; background:#ffcf5a; border-radius:2px; cursor:nwse-resize; }
+  aside { width:380px; background:#141822; border-left:1px solid #2a3040; padding:10px; display:flex; flex-direction:column; gap:8px; overflow:auto; }
+  textarea { width:100%; height:46%; background:#0e1016; color:#c4cad8; border:1px solid #2a3040; border-radius:6px; font-family:Consolas,monospace; font-size:11px; }
+  .hint { font-size:11px; color:#8b93a7; }
+  select { background:#242a38; color:#e6e9f0; border:1px solid #2a3040; border-radius:5px; padding:3px; }
+  .selrow { display:flex; gap:6px; align-items:center; font-size:12px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎯 Region Editor</h1>
+  <label class="btn">Load screenshot<input id="file" type="file" accept="image/*" hidden></label>
+  <button id="loadRegions">Load regions from JSON ▸</button>
+  <button id="export">◂ Export regions</button>
+  <span class="selrow" id="selinfo"></span>
+  <span class="hint">Drag to move · drag the yellow corner to resize · anchor is preserved</span>
+</header>
+<div class="main">
+  <div id="stage"><div id="wrap"><img id="img" alt="load a screenshot (a real game frame)"></div></div>
+  <aside>
+    <div class="hint">Paste the <b>"Regions"</b> object from settings.jsonc, click “Load regions”. Adjust boxes, then “Export” and paste back.</div>
+    <textarea id="json">{
+  "TopBar":      { "Anchor":"topleft",    "X":0.06, "Y":0.0,  "W":0.70, "H":0.032 },
+  "LobbyId":     { "Anchor":"bottomleft", "X":0.0,  "Y":0.004,"W":0.11, "H":0.024 },
+  "Chat":        { "Anchor":"topright",   "X":0.0,  "Y":0.14, "W":0.23, "H":0.28 },
+  "Party":       { "Anchor":"topright",   "X":0.13, "Y":0.12, "W":0.21, "H":0.36 },
+  "InGameSquad": { "Anchor":"bottomleft", "X":0.0,  "Y":0.025,"W":0.13, "H":0.285 },
+  "Feed":        { "Anchor":"left",       "X":0.0,  "Y":0.015,"W":0.18, "H":0.17 },
+  "Spectating":  { "Anchor":"bottom",     "X":0.0,  "Y":0.17, "W":0.26, "H":0.10 },
+  "Health":      { "Anchor":"bottom",     "X":0.0,  "Y":0.08, "W":0.16, "H":0.02 },
+  "DeployBanner":{ "Anchor":"top",        "X":0.0,  "Y":0.08, "W":0.16, "H":0.18 },
+  "DeathBanner": { "Anchor":"top",        "X":0.0,  "Y":0.10, "W":0.40, "H":0.14 },
+  "PartyCode":   { "Anchor":"center",     "X":0.0,  "Y":-0.1325,"W":0.12,"H":0.075 },
+  "Inspect":     { "Anchor":"topright",   "X":0.02, "Y":0.10, "W":0.32, "H":0.76 }
+}</textarea>
+    <div class="hint">Selected region anchor: <select id="anchor" disabled></select></div>
+    <div class="hint">Output (copy back into settings.jsonc → "Regions"):</div>
+    <textarea id="out" readonly></textarea>
+  </aside>
+</div>
+<script>
+const ANCHORS = ['topleft','top','topright','left','center','right','bottomleft','bottom','bottomright'];
+const wrap = document.getElementById('wrap'), img = document.getElementById('img');
+let regions = {}, boxes = {}, sel = null, cw = 0, ch = 0;
+
+document.getElementById('file').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  img.src = URL.createObjectURL(f);
+  img.onload = () => { cw = img.naturalWidth; ch = img.naturalHeight; layout(); };
+});
+document.getElementById('loadRegions').onclick = () => {
+  try { regions = JSON.parse(document.getElementById('json').value); render(); }
+  catch (e) { alert('Invalid JSON: ' + e.message); }
+};
+document.getElementById('export').onclick = exportJson;
+const anchorSel = document.getElementById('anchor');
+ANCHORS.forEach(a => { const o = document.createElement('option'); o.value = o.textContent = a; anchorSel.appendChild(o); });
+anchorSel.onchange = () => { if (sel) { regions[sel].Anchor = anchorSel.value; layout(); exportJson(); } };
+
+// region {anchor,x,y,w,h} -> pixel rect in image space
+function toRect(r) {
+  const w = r.W * cw, h = r.H * ch, a = (r.Anchor||'topleft').toLowerCase();
+  let x = a.includes('right') ? cw - r.X*cw - w : a.includes('left') ? r.X*cw : (cw-w)/2 + r.X*cw;
+  let y = a.includes('bottom') ? ch - r.Y*ch - h : a.includes('top') ? r.Y*ch : (ch-h)/2 + r.Y*ch;
+  return { x, y, w, h };
+}
+// pixel rect -> {x,y} offsets for the region's anchor
+function fromRect(a, px, py, pw, ph) {
+  a = (a||'topleft').toLowerCase();
+  const W = pw/cw, H = ph/ch;
+  let X = a.includes('right') ? (cw - px - pw)/cw : a.includes('left') ? px/cw : (px - (cw-pw)/2)/cw;
+  let Y = a.includes('bottom') ? (ch - py - ph)/ch : a.includes('top') ? py/ch : (py - (ch-ph)/2)/ch;
+  return { X:+X.toFixed(4), Y:+Y.toFixed(4), W:+W.toFixed(4), H:+H.toFixed(4) };
+}
+
+function render() {
+  Object.values(boxes).forEach(b => b.remove()); boxes = {};
+  for (const name in regions) {
+    const el = document.createElement('div'); el.className = 'region';
+    el.innerHTML = `<span class="lbl">${name}</span><span class="rz"></span>`;
+    wrap.appendChild(el); boxes[name] = el;
+    makeInteractive(name, el);
+    el.addEventListener('mousedown', () => select(name));
+  }
+  layout(); exportJson();
+}
+function layout() {
+  for (const name in regions) {
+    const b = boxes[name]; if (!b) continue;
+    const r = toRect(regions[name]);
+    b.style.left = r.x+'px'; b.style.top = r.y+'px'; b.style.width = r.w+'px'; b.style.height = r.h+'px';
+  }
+}
+function select(name) {
+  sel = name;
+  Object.entries(boxes).forEach(([n,b]) => b.classList.toggle('sel', n===name));
+  anchorSel.disabled = false; anchorSel.value = (regions[name].Anchor||'topleft');
+  document.getElementById('selinfo').textContent = name;
+}
+function makeInteractive(name, el) {
+  const rz = el.querySelector('.rz');
+  let mode = null, sx, sy, ox, oy, ow, oh;
+  const down = (e, m) => { mode = m; sx = e.clientX; sy = e.clientY;
+    ox = parseFloat(el.style.left); oy = parseFloat(el.style.top); ow = el.offsetWidth; oh = el.offsetHeight;
+    select(name); e.preventDefault(); e.stopPropagation();
+    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up); };
+  el.addEventListener('mousedown', (e) => { if (e.target !== rz) down(e, 'move'); });
+  rz.addEventListener('mousedown', (e) => down(e, 'resize'));
+  function move(e) {
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (mode === 'move') { el.style.left = (ox+dx)+'px'; el.style.top = (oy+dy)+'px'; }
+    else { el.style.width = Math.max(6, ow+dx)+'px'; el.style.height = Math.max(6, oh+dy)+'px'; }
+  }
+  function up() {
+    document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+    const px = parseFloat(el.style.left), py = parseFloat(el.style.top), pw = el.offsetWidth, ph = el.offsetHeight;
+    Object.assign(regions[name], fromRect(regions[name].Anchor, px, py, pw, ph));
+    exportJson();
+  }
+}
+function exportJson() { document.getElementById('out').value = JSON.stringify(regions, null, 2); }
+</script>
+</body>
+</html>
