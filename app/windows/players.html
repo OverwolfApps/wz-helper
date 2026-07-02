@@ -5,7 +5,7 @@
   <title>Players</title>
   <style>
     :root { --bg-alpha:0.9; --line:#2a3040; --muted:#8b93a7;
-            --self:#ffcf5a; --squad:#48d597; --enemy:#ff5a6a; --unknown:#9aa3b6; }
+            --self:#ffcf5a; --squad:#48d597; --enemy:#ff5a6a; --online:#5ab0ff; --unknown:#9aa3b6; }
     * { box-sizing:border-box; }
     html,body { height:100%; }
     body { margin:0; font-family:'Segoe UI',sans-serif; color:#e6e9f0;
@@ -26,6 +26,7 @@
     .p.self .nm { color:var(--self); font-weight:600; }
     .p.squad .nm { color:var(--squad); }
     .p.enemy .nm { color:var(--enemy); }
+    .p.online .nm { color:var(--online); }
     .p.unknown .nm { color:var(--unknown); }
     .p.dead .nm { text-decoration:line-through; opacity:.75; }
     .p.disconnected { opacity:.45; }

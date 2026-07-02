@@ -148,7 +148,8 @@ namespace WarzoneHelper.Core.Monitors
             if (s.PartyLines != null && s.PartyLines.Length > 0)
             {
                 var members = PartyParser.Parse(s.PartyLines);
-                var key = string.Join("|", members.Select(m => m.Key));
+                // Include the section in the stable key so a member moving PARTY<->ONLINE re-emits.
+                var key = string.Join("|", members.Select(m => (m.Group ?? "") + ":" + m.Key));
 
                 if (key == _pendingPartyKey) _partyStable++;
                 else { _pendingPartyKey = key; _partyStable = 1; }
@@ -157,7 +158,7 @@ namespace WarzoneHelper.Core.Monitors
                 {
                     _lastPartyKey = key;
                     var payload = members.Select(m => new Dictionary<string, object> {
-                        { "name", m.Name }, { "level", m.Level } }).ToArray();
+                        { "name", m.Name }, { "level", m.Level }, { "group", m.Group } }).ToArray();
                     // A large top-right list is the full match/lobby roster, not your party.
                     var name = s.PartyIsMatchList ? EventNames.MatchListChanged : EventNames.PartyListChanged;
                     // Self position: topmost in the lobby party panel, bottommost in the in-game squad.

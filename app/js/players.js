@@ -36,8 +36,8 @@ try {
   }
 } catch {}
 
-const TEAM_ORDER = { self: 0, squad: 1, enemy: 2, unknown: 3 };
-const TEAM_LABEL = { self: 'You', squad: 'Squad', enemy: 'Enemies', unknown: 'Lobby' };
+const TEAM_ORDER = { self: 0, squad: 1, enemy: 2, online: 3, unknown: 4 };
+const TEAM_LABEL = { self: 'You', squad: 'Squad', enemy: 'Enemies', online: 'Online', unknown: 'Lobby' };
 
 function sortKey(p) {
   const disc = p.status === 'disconnected' ? 1 : 0;  // sink disconnected within their team

@@ -233,7 +233,18 @@ namespace WarzoneHelper.Core.Monitors
                 if (!(item is IDictionary<string, object> md)) { upserted.Add(null); continue; }
                 var name = md.TryGetValue("name", out var n) ? n?.ToString() : null;
                 int? level = md.TryGetValue("level", out var lv) && lv != null ? Convert.ToInt32(lv) : (int?)null;
-                upserted.Add(Observe(name, team, level, evt.Source));
+                var group = md.TryGetValue("group", out var g) ? g?.ToString() : null;
+                // A social-panel section overrides the event default: PARTY members are your squad,
+                // ONLINE friends are their own category, OFFLINE friends aren't tracked at all.
+                string memberTeam;
+                switch (group)
+                {
+                    case "party": memberTeam = "squad"; break;
+                    case "online": memberTeam = "online"; break;
+                    case "offline": upserted.Add(null); continue;
+                    default: memberTeam = team; break; // no headers (in-game squad / match list)
+                }
+                upserted.Add(Observe(name, memberTeam, level, evt.Source));
             }
             if (selfIndex >= 0 && selfIndex < upserted.Count && upserted[selfIndex] != null)
                 SetSelf(upserted[selfIndex].Key, upserted.Count);
@@ -327,7 +338,7 @@ namespace WarzoneHelper.Core.Monitors
         }
 
         private static int Rank(string team)
-        { switch (team) { case "self": return 3; case "squad": return 2; case "enemy": return 1; default: return 0; } }
+        { switch (team) { case "self": return 4; case "squad": return 3; case "enemy": return 2; case "online": return 1; default: return 0; } }
 
         private void Sweep()
         {
