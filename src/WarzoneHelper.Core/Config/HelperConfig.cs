@@ -110,6 +110,11 @@ namespace WarzoneHelper.Core.Config
         public int PlayerRetainSec { get; set; } = 120;
         /// <summary>Your own player name (letters compared loosely) so the roster marks you as self.</summary>
         public string PlayerSelfName { get; set; } = "";
+        /// <summary>Persistent multi-session player cache (minified JSON).</summary>
+        public string PlayerCacheFile { get; set; } = "%APPDATA%\\WarzoneHelper\\players.json";
+        /// <summary>Name-similarity (0..1) at/above which a new read is linked to an existing cached
+        /// player instead of creating a new one (kills OCR-variant duplicates / made-up players).</summary>
+        public double PlayerFuzzyThreshold { get; set; } = 0.84;
         /// <summary>Screen regions (normalized 0..1) for the analyzer. See ScreenRegions.</summary>
         public ScreenRegions Regions { get; set; } = new ScreenRegions();
 

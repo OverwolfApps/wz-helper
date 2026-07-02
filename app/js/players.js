@@ -8,6 +8,7 @@ const listEl = document.getElementById('list');
 const countEl = document.getElementById('count');
 
 document.getElementById('close').onclick = () => selfWindowId && overwolf.windows.hide(selfWindowId, () => {});
+document.getElementById('min').onclick = () => selfWindowId && overwolf.windows.minimize(selfWindowId, () => {});
 document.getElementById('grip').addEventListener('mousedown', () => {
   if (selfWindowId) overwolf.windows.dragResize(selfWindowId, 'BottomRight');
 });
@@ -62,11 +63,16 @@ function render() {
     }
     const row = document.createElement('div');
     row.className = `p ${p.team}${p.status === 'dead' ? ' dead' : ''}${p.status === 'disconnected' ? ' disconnected' : ''}`;
-    const st = p.status === 'disconnected' ? 'DC' : (p.status === 'dead' ? '☠' : '');
+    const bits = [];
+    if (p.rank) bits.push(p.rank);
+    if (p.platform) bits.push(p.platform);
+    if (p.banned) bits.push('BAN');
+    if (p.status === 'disconnected') bits.push('DC');
+    else if (p.status === 'dead') bits.push('☠');
     row.innerHTML =
       `<span class="lvl">${p.level != null ? p.level : ''}</span>` +
       `<span class="nm">${escapeHtml(p.name || p.key)}</span>` +
-      `<span class="st">${st}</span>`;
+      `<span class="st">${escapeHtml(bits.join(' · '))}</span>`;
     listEl.appendChild(row);
   }
 }
