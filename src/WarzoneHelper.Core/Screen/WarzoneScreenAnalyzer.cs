@@ -68,7 +68,7 @@ namespace WarzoneHelper.Core.Screen
             if (_ocr.Available && frame.Width >= 320 && frame.Height >= 240)
             {
                 // Top telemetry overlay (FPS / LATENCY / GAME LATENCY / ...). Shown in lobby and match.
-                var perfText = ReadRegion(frame, _regions.TopBar, null, singleLine: true);
+                var perfText = ReadRegion(frame, _regions.TopBar, OcrFields.PerfStripWhitelist, singleLine: true);
                 var perf = PerfParser.Parse(perfText);
                 if (perf.Count > 0) s.Perf = perf;
 

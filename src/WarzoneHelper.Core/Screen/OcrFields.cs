@@ -62,6 +62,11 @@ namespace WarzoneHelper.Core.Screen
             Pattern = new Regex(@"([A-Za-z0-9_\-\[\] ]{3,})#(?<v>\d{3,})", RegexOptions.Compiled)
         };
 
+        /// <summary>Chars that appear in the top telemetry strip (labels + values). Constrains OCR at
+        /// the source so it can't emit stray symbols, without dropping the letter labels the parser
+        /// needs. (Name regions are NOT whitelisted — that would drop unicode names.)</summary>
+        public const string PerfStripWhitelist = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789:%.°/";
+
         // --- Top telemetry overlay metrics (label-aware patterns + sane numeric ranges) ---
         private static OcrField Metric(string name, string pattern, int lo, int hi) => new OcrField
         {
