@@ -209,6 +209,6 @@ namespace WarzoneHelper.Core.Config
         // Killfeed + event log, left-middle ("<killer> [icon] <victim>" and "<player> Disconnected").
         public double[] Feed { get; set; } = { 0.0, 0.43, 0.18, 0.17 };
         // "YOUR PARTY CODE" value (big centered code, e.g. LLJGJ) on the party-code menu.
-        public double[] PartyCode { get; set; } = { 0.42, 0.35, 0.16, 0.09 };
+        public double[] PartyCode { get; set; } = { 0.44, 0.33, 0.12, 0.075 };
     }
 }
