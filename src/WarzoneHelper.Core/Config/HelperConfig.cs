@@ -221,33 +221,49 @@ namespace WarzoneHelper.Core.Config
     /// Normalized screen regions (x, y, w, h in 0..1 of the game frame) that the analyzer
     /// samples. Defaults target a 16:9 Warzone HUD; tune per resolution from your Screenshots/.
     /// </summary>
-    // Defaults measured from 3440x1440 (21:9) reference frames in .references/Screenshots.
-    // All values are normalized (0..1) fractions of the game frame, so they scale across resolutions
-    // of the same aspect ratio; other aspect ratios may need a nudge.
+    /// <summary>
+    /// A screen region anchored to an edge/corner so it stays correct across aspect ratios.
+    /// Anchor is any combination of top/bottom/left/right (or "center"); X/Y are the offset (as
+    /// fractions of the frame) FROM the anchored edge(s) — from center when an axis isn't anchored —
+    /// and W/H are the size fractions. Deserializable from JSONC.
+    /// </summary>
+    public sealed class Region
+    {
+        public string Anchor { get; set; } = "topleft";
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double W { get; set; }
+        public double H { get; set; }
+        public Region() { }
+        public Region(string anchor, double x, double y, double w, double h)
+        { Anchor = anchor; X = x; Y = y; W = w; H = h; }
+    }
+
+    // Defaults measured from 3440x1440 (21:9) reference frames in .references/Screenshots and
+    // expressed with edge anchors so they hold on other aspect ratios (16:9, 16:10, ...).
     public sealed class ScreenRegions
     {
         // Deploy countdown ("Deployment will begin in: NN"), upper-center.
-        public double[] DeployBanner { get; set; } = { 0.42, 0.08, 0.16, 0.18 };
+        public Region DeployBanner { get; set; } = new Region("top", 0.0, 0.08, 0.16, 0.18);
         // Death / "You were killed by" banner, upper-center.
-        public double[] DeathBanner { get; set; } = { 0.30, 0.10, 0.40, 0.14 };
+        public Region DeathBanner { get; set; } = new Region("top", 0.0, 0.10, 0.40, 0.14);
         // Health/armor bar (shown when damaged), low-center.
-        public double[] Health { get; set; } = { 0.42, 0.90, 0.16, 0.02 };
+        public Region Health { get; set; } = new Region("bottom", 0.0, 0.08, 0.16, 0.02);
         // Lobby/session ID (~19 digits), very bottom-left corner (in-match).
-        public double[] LobbyId { get; set; } = { 0.0, 0.972, 0.11, 0.024 };
+        public Region LobbyId { get; set; } = new Region("bottomleft", 0.0, 0.004, 0.11, 0.024);
         // In-game chat: upper-right stack of "[CHANNEL] name / message" lines.
-        public double[] Chat { get; set; } = { 0.77, 0.14, 0.23, 0.28 };
+        public Region Chat { get; set; } = new Region("topright", 0.0, 0.14, 0.23, 0.28);
         // Lobby player panel, top-right (small = your PARTY, large = full MATCH/lobby list).
-        public double[] Party { get; set; } = { 0.66, 0.12, 0.21, 0.36 };
+        public Region Party { get; set; } = new Region("topright", 0.13, 0.12, 0.21, 0.36);
         // In-match squad panel, bottom-left (teammates + cash).
-        public double[] InGameSquad { get; set; } = { 0.0, 0.69, 0.13, 0.285 };
+        public Region InGameSquad { get; set; } = new Region("bottomleft", 0.0, 0.025, 0.13, 0.285);
         // "SPECTATING: name#id" panel, bottom-center (when dead/spectating).
-        public double[] Spectating { get; set; } = { 0.37, 0.73, 0.26, 0.10 };
+        public Region Spectating { get; set; } = new Region("bottom", 0.0, 0.17, 0.26, 0.10);
         // Perf/telemetry overlay strip along the very top (FPS / LATENCY / GAME LATENCY / etc.).
-        // Its exact position shifts, so this spans a wide top band and the parser extracts pairs.
-        public double[] TopBar { get; set; } = { 0.06, 0.0, 0.70, 0.032 };
+        public Region TopBar { get; set; } = new Region("topleft", 0.06, 0.0, 0.70, 0.032);
         // Killfeed + event log, left-middle ("<killer> [icon] <victim>" and "<player> Disconnected").
-        public double[] Feed { get; set; } = { 0.0, 0.43, 0.18, 0.17 };
+        public Region Feed { get; set; } = new Region("left", 0.0, 0.015, 0.18, 0.17);
         // "YOUR PARTY CODE" value (big centered code, e.g. LLJGJ) on the party-code menu.
-        public double[] PartyCode { get; set; } = { 0.44, 0.33, 0.12, 0.075 };
+        public Region PartyCode { get; set; } = new Region("center", 0.0, -0.1325, 0.12, 0.075);
     }
 }

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text.RegularExpressions;
 using WarzoneHelper.Core.Config;
+using Region = WarzoneHelper.Core.Config.Region;
 
 namespace WarzoneHelper.Core.Screen
 {
@@ -133,20 +134,31 @@ namespace WarzoneHelper.Core.Screen
             return s;
         }
 
-        private static Rectangle ToRect(Bitmap b, double[] r)
+        /// <summary>Resolve an anchored Region to a pixel rectangle within the frame.</summary>
+        private static Rectangle ToRect(Bitmap b, Region r)
         {
-            int x = (int)(r[0] * b.Width), y = (int)(r[1] * b.Height);
-            int w = (int)(r[2] * b.Width), h = (int)(r[3] * b.Height);
-            x = Clamp(x, 0, b.Width - 1); y = Clamp(y, 0, b.Height - 1);
-            w = Clamp(w, 1, b.Width - x); h = Clamp(h, 1, b.Height - y);
+            int fw = b.Width, fh = b.Height;
+            int w = (int)(r.W * fw), h = (int)(r.H * fh);
+            var a = (r.Anchor ?? "topleft").ToLowerInvariant();
+
+            int x;
+            if (a.Contains("right")) x = fw - (int)(r.X * fw) - w;       // X = offset from right edge
+            else if (a.Contains("left")) x = (int)(r.X * fw);           // X = offset from left edge
+            else x = (fw - w) / 2 + (int)(r.X * fw);                    // centered + X offset
+
+            int y;
+            if (a.Contains("bottom")) y = fh - (int)(r.Y * fh) - h;      // Y = offset from bottom edge
+            else if (a.Contains("top")) y = (int)(r.Y * fh);           // Y = offset from top edge
+            else y = (fh - h) / 2 + (int)(r.Y * fh);                    // centered + Y offset
+
+            x = Clamp(x, 0, fw - 1); y = Clamp(y, 0, fh - 1);
+            w = Clamp(w, 1, fw - x); h = Clamp(h, 1, fh - y);
             return new Rectangle(x, y, w, h);
         }
 
-        private static Bitmap Crop(Bitmap b, double[] r) => b.Clone(ToRect(b, r), b.PixelFormat);
-
         /// <summary>Crop + OCR a region. Skips tiny crops, and upscales short ones (thin HUD strips
         /// like the perf overlay / lobby id) since Tesseract reads small text poorly.</summary>
-        private string ReadRegion(Bitmap frame, double[] region, string whitelist, bool singleLine)
+        private string ReadRegion(Bitmap frame, Region region, string whitelist, bool singleLine)
         {
             var rect = ToRect(frame, region);
             if (rect.Width < MinOcrPx || rect.Height < MinOcrPx) return null;
@@ -180,7 +192,7 @@ namespace WarzoneHelper.Core.Screen
         }
 
         /// <summary>Health bar: fraction of the bar width that is "filled" (bright, non-dark) pixels.</summary>
-        private static double EstimateHealth(Bitmap b, double[] region)
+        private static double EstimateHealth(Bitmap b, Region region)
         {
             var rect = ToRect(b, region);
             int midY = rect.Y + rect.Height / 2;
@@ -197,7 +209,7 @@ namespace WarzoneHelper.Core.Screen
         }
 
         /// <summary>Detects a predominantly red banner (death / damage indicator).</summary>
-        private static bool DetectReddishBanner(Bitmap b, double[] region, double minRatio)
+        private static bool DetectReddishBanner(Bitmap b, Region region, double minRatio)
         {
             var rect = ToRect(b, region);
             long red = 0, count = 0;
@@ -212,7 +224,7 @@ namespace WarzoneHelper.Core.Screen
         }
 
         /// <summary>Detects a bright/high-contrast prompt banner (deploy / parachute prompt).</summary>
-        private static bool DetectBrightBanner(Bitmap b, double[] region, double minRatio)
+        private static bool DetectBrightBanner(Bitmap b, Region region, double minRatio)
         {
             var rect = ToRect(b, region);
             long bright = 0, count = 0;
