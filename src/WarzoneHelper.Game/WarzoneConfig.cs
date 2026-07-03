@@ -28,6 +28,14 @@ namespace WarzoneHelper.Game
             GameUdpPortRangeStart = new[] { 27000 };
             GameUdpPortRangeEnd = new[] { 27031 };
 
+            // Warzone connects to TWO servers on :44998 per match (back-to-back): a low-throughput
+            // lobby/session server (~3-7 KB/s) then the actual gameplay server (~15-37 KB/s). Event
+            // logs show a clean gap, so require ~10 KB/s to count a peer as the game server — this
+            // isolates the real match server (and keeps Demonware :3074 bursts out). Tune if a real
+            // match ever fails to register.
+            GameServerTrafficBytesPerSec = 10000; // high-traffic candidate gate (non-game-port, e.g. :44998)
+            GameServerMinBytesPerSec = 10000;     // promotion gate (also filters game-port backend bursts)
+
             // Activision status API + CoD title filter
             StatusApiUrl = "https://prod-psapi.infra-ext.activision.com/open/api/apexrest/oshp/landingpage";
             StatusGameTitles = new[] { "warzone", "black ops", "modern warfare", "call of duty" };
@@ -74,8 +82,8 @@ namespace WarzoneHelper.Game
         public Region Health { get; set; } = new Region("bottom", 0.0, 0.08, 0.16, 0.02);
         // Lobby/session ID (~19 digits), very bottom-left corner (in-match).
         public Region LobbyId { get; set; } = new Region("bottomleft", 0.0, 0.004, 0.11, 0.024);
-        // Build/version watermark ("12.11.27503415[...]") — corner text; tune with the region editor.
-        public Region Version { get; set; } = new Region("bottomleft", 0.0, 0.028, 0.24, 0.02);
+        // Build/version watermark ("12.11.27503415[...]") — bottom-RIGHT corner; tune with the region editor.
+        public Region Version { get; set; } = new Region("bottomright", 0.0, 0.006, 0.26, 0.02);
         // In-game chat: upper-right stack of "[CHANNEL] name / message" lines.
         public Region Chat { get; set; } = new Region("topright", 0.0, 0.14, 0.23, 0.28);
         // Lobby player panel, top-right (small = your PARTY, large = full MATCH/lobby list).

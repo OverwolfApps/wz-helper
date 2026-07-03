@@ -48,14 +48,14 @@ namespace GameHelper.Core.Monitors
             try
             {
                 var found = new HashSet<int>();
-                string exePath = null;
+                string exePath = null; int firstPid = 0;
                 foreach (var name in _names)
                 {
                     foreach (var p in Process.GetProcessesByName(name))
                     {
                         found.Add(p.Id);
-                        // Capture the exe path of the first match (for version/size details on start).
-                        if (exePath == null) { try { exePath = p.MainModule?.FileName; } catch { /* access denied */ } }
+                        // Capture the exe path + pid of the first match (for version/size/cmdline on start).
+                        if (exePath == null) { try { exePath = p.MainModule?.FileName; firstPid = p.Id; } catch { /* access denied */ } }
                         p.Dispose();
                     }
                 }
@@ -70,6 +70,8 @@ namespace GameHelper.Core.Monitors
                         {
                             e.With("pids", found.ToArray());
                             AddExeInfo(e, exePath);
+                            var cmd = GetCommandLine(firstPid);
+                            if (!string.IsNullOrEmpty(cmd)) e.With("commandLine", cmd);
                         });
                     else
                         CoreEvents.GameProcessStopped.Emit(_bus, e => e.With("pids", found.ToArray()));
@@ -98,6 +100,23 @@ namespace GameHelper.Core.Monitors
                  .With("company", vi.CompanyName);
             }
             catch { /* version info unavailable */ }
+        }
+
+        /// <summary>Read a process's full command line via WMI (works because the agent runs elevated;
+        /// the game's command line often carries uid/session args). Null if unavailable.</summary>
+        private static string GetCommandLine(int pid)
+        {
+            if (pid <= 0) return null;
+            try
+            {
+                using (var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {pid}"))
+                using (var results = searcher.Get())
+                    foreach (System.Management.ManagementObject mo in results)
+                        return mo["CommandLine"]?.ToString();
+            }
+            catch { /* WMI unavailable / access denied */ }
+            return null;
         }
 
         public void Stop() { _timer?.Dispose(); _timer = null; }

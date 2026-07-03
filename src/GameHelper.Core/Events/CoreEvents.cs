@@ -85,6 +85,7 @@ namespace GameHelper.Core.Events
             EventNames.GameProcessStarted, EventSource.Process, "The game process started (with exe details for update detection).",
             F("pids", "int[]", "matching process ids"),
             F("exe", "string", "full exe path"),
+            F("commandLine", "string", "full process command line (uid/session args)"),
             F("sizeBytes", "int", "exe size in bytes (changes on patch)"),
             F("modifiedUtc", "string", "exe last-modified ISO-8601 (changes on patch)"),
             F("fileVersion", "string", "exe FileVersion"),
