@@ -150,7 +150,7 @@ function summarize(name, d) {
       `${flagImg(d.countryIso)}${endpointScheme(d)}://${d.ip}:${d.port}`,
       [d.city, d.countryIso].filter(Boolean).join(', '),
       d.pingMs >= 0 ? `${d.pingMs}ms` : 'n/a',
-      d.bytesPerSec != null ? `${Math.round(d.bytesPerSec / 1000)}kb/s` : '',
+      (d.peakBytesPerSec ?? d.bytesPerSec) != null ? `${Math.round((d.peakBytesPerSec ?? d.bytesPerSec) / 1000)}kb/s` : '',
       [d.asnOrg, d.asn != null ? 'AS' + d.asn : ''].filter(Boolean).join('/'),
       d.isLikelyVPN ? `⚠VPN?(${d.vpnReason})` : '',
     ].filter(Boolean).join(' | ');

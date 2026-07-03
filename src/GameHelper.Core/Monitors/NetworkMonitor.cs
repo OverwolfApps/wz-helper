@@ -41,8 +41,14 @@ namespace GameHelper.Core.Monitors
             public int MissedPolls;
             public bool Announced;
             public bool IsGameServer;
-            public long BytesSent;
+            public long BytesSent;         // cumulative (ETW counters accumulate for the peer's life)
             public long BytesRecv;
+            // Windowed rate, derived from the byte deltas between polls (a real B/s, unlike total/window),
+            // plus its running peak — used for classification so a peer that ramps up is caught.
+            public long LastTotal;
+            public DateTime LastPollUtc;
+            public double RateBps;
+            public double PeakRateBps;
             public readonly DateTime FirstSeenUtc = DateTime.UtcNow;
         }
 
@@ -85,15 +91,12 @@ namespace GameHelper.Core.Monitors
                 foreach (var peer in _udp?.Snapshot() ?? Array.Empty<UdpPeer>())
                 {
                     if (string.IsNullOrEmpty(peer.RemoteAddress)) continue;
-                    // A peer is a game-server candidate if it's on a known CoD game port OR it's
-                    // pushing a sustained high-rate stream (the real match server, whatever its port).
-                    double rate = (peer.BytesSent + peer.BytesRecv) / UdpWindowSeconds;
-                    bool highTraffic = _cfg.GameServerTrafficBytesPerSec > 0 &&
-                                       rate >= _cfg.GameServerTrafficBytesPerSec;
-                    bool candidate = IsGamePort(peer.RemotePort) || highTraffic;
+                    // Every UDP peer of the game is a candidate; Touch's real windowed-rate gates
+                    // decide whether to announce it (>= Traffic) and whether it's a game server vs a
+                    // service (>= Min), and it re-classifies as the rate ramps.
                     var key = $"UDP:{peer.RemoteAddress}:{peer.RemotePort}";
                     current.Add(key);
-                    Touch(key, peer.RemoteAddress, peer.RemotePort, "UDP", isGameCandidate: candidate,
+                    Touch(key, peer.RemoteAddress, peer.RemotePort, "UDP", isGameCandidate: true,
                         sent: peer.BytesSent, recv: peer.BytesRecv);
                 }
 
@@ -126,7 +129,31 @@ namespace GameHelper.Core.Monitors
             t.BytesSent = sent;
             t.BytesRecv = recv;
 
-            if (t.Announced) return;
+            // Real windowed rate = byte delta since last poll / elapsed (the ETW counters are
+            // cumulative, so total/window would just grow forever). Track the running peak too.
+            long total = sent + recv;
+            var now = DateTime.UtcNow;
+            if (t.LastPollUtc != default(DateTime))
+            {
+                double dt = (now - t.LastPollUtc).TotalSeconds;
+                if (dt >= 0.5) t.RateBps = Math.Max(0, (total - t.LastTotal)) / dt;
+            }
+            t.LastTotal = total; t.LastPollUtc = now;
+            if (t.RateBps > t.PeakRateBps) t.PeakRateBps = t.RateBps;
+
+            bool isGameByRate = _cfg.GameServerMinBytesPerSec <= 0 || t.PeakRateBps >= _cfg.GameServerMinBytesPerSec;
+
+            if (t.Announced)
+            {
+                // Promote a service to a game server if its throughput has since crossed the split
+                // (a peer that started slow — matchmaking/loading — then became the match server).
+                if (proto == "UDP" && !t.IsGameServer && isGameByRate)
+                {
+                    t.IsGameServer = true;
+                    Announce(t, connected: true);   // re-announce as GAME_SERVER_CONNECTED
+                }
+                return;
+            }
 
             if (proto == "UDP" && isGameCandidate)
             {
@@ -135,13 +162,12 @@ namespace GameHelper.Core.Monitors
                 // peers (e.g. the lobby/session server) are still logged, as a SERVICE. matchOk lets a
                 // profile require in-match first (off by default).
                 bool persisted = t.SeenPolls >= _cfg.GameServerConfirmPolls;
-                double rate = (t.BytesSent + t.BytesRecv) / UdpWindowSeconds;
-                bool announceOk = _cfg.GameServerTrafficBytesPerSec <= 0 || rate >= _cfg.GameServerTrafficBytesPerSec;
+                bool announceOk = _cfg.GameServerTrafficBytesPerSec <= 0 || t.PeakRateBps >= _cfg.GameServerTrafficBytesPerSec;
                 bool matchOk = !_cfg.GameServerRequireInMatch || (_match != null && _match.InMatch);
 
                 if (persisted && announceOk && matchOk)
                 {
-                    t.IsGameServer = _cfg.GameServerMinBytesPerSec <= 0 || rate >= _cfg.GameServerMinBytesPerSec;
+                    t.IsGameServer = isGameByRate;
                     Announce(t, connected: true);
                 }
             }
@@ -188,7 +214,8 @@ namespace GameHelper.Core.Monitors
                     .With("bytes", totalBytes)
                     .With("bytesSent", t.BytesSent)
                     .With("bytesRecv", t.BytesRecv)
-                    .With("bytesPerSec", (long)(totalBytes / UdpWindowSeconds))
+                    .With("bytesPerSec", (long)t.RateBps)
+                    .With("peakBytesPerSec", (long)t.PeakRateBps)
                     .With("secondsTracked", Math.Round((DateTime.UtcNow - t.FirstSeenUtc).TotalSeconds, 1));
                 if (geo != null)
                     foreach (var kv in geo.ToDict()) evt.With(kv.Key, kv.Value);

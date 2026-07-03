@@ -24,7 +24,8 @@ namespace GameHelper.Core.Events
             F("bytes", "int", "total bytes observed in the window"),
             F("bytesSent", "int", "bytes sent in the window"),
             F("bytesRecv", "int", "bytes received in the window"),
-            F("bytesPerSec", "int", "sustained throughput"),
+            F("bytesPerSec", "int", "current windowed throughput (real B/s from byte deltas)"),
+            F("peakBytesPerSec", "int", "peak windowed throughput reached (used for classification)"),
             F("secondsTracked", "number", "how long this peer has been tracked"),
             // GeoIP enrichment (present when the IP resolves):
             F("countryIso", "string", "ISO country code"),
