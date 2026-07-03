@@ -22,13 +22,16 @@ const NAME_CLASS = {
   PLAYER_JOINED:'game', PLAYER_LEFT:'dead', KILLFEED_ENTRY:'dead',
 };
 
-const LS_FILTERS = 'wzh_filters', LS_OPACITY = 'wzh_opacity';
-let enabled = loadFilters();
-function loadFilters() {
-  try { const j = JSON.parse(localStorage.getItem(LS_FILTERS)); if (Array.isArray(j)) return new Set(j); } catch {}
-  return new Set(ALL_EVENTS);
+const LS_DISABLED = 'wzh_disabled', LS_OPACITY = 'wzh_opacity';
+// We persist only the DISABLED events (unchecked). Everything else is on — so new events default
+// on and the user's unchecks survive restarts. Stored as ["EVENT_A","EVENT_B", ...].
+let disabled = loadDisabled();
+function loadDisabled() {
+  try { const j = JSON.parse(localStorage.getItem(LS_DISABLED)); if (Array.isArray(j)) return new Set(j); } catch {}
+  return new Set();
 }
-function saveFilters() { localStorage.setItem(LS_FILTERS, JSON.stringify([...enabled])); }
+function saveDisabled() { localStorage.setItem(LS_DISABLED, JSON.stringify([...disabled])); }
+function isEnabled(name) { return !disabled.has(name); }
 
 const logEl = document.getElementById('log');
 
@@ -54,8 +57,8 @@ function buildFilterList() {
     const lbl = document.createElement('label');
     const doc = EVENT_DOCS[name];
     if (doc && doc.description) lbl.title = doc.description;   // hover shows the event's description
-    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = enabled.has(name); cb.dataset.name = name;
-    cb.onchange = () => { cb.checked ? enabled.add(name) : enabled.delete(name); saveFilters(); applyFilter(); };
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = isEnabled(name); cb.dataset.name = name;
+    cb.onchange = () => { cb.checked ? disabled.delete(name) : disabled.add(name); saveDisabled(); applyFilter(); };
     lbl.appendChild(cb); lbl.appendChild(document.createTextNode(name));
     filterList.appendChild(lbl);
   }
@@ -68,11 +71,9 @@ function applyCatalog(data) {
   const docs = Array.isArray(data.events) ? data.events : [];
   if (!docs.length) return;
   EVENT_DOCS = {}; for (const d of docs) EVENT_DOCS[d.name] = d;
-  const hadSaved = localStorage.getItem(LS_FILTERS) != null;
   ALL_EVENTS = docs.map(d => d.name);
-  // Enable any newly-appeared events by default so nothing silently hides.
-  for (const n of ALL_EVENTS) if (!hadSaved || !enabled.has(n)) enabled.add(n);
-  saveFilters();
+  // Nothing to reconcile: unchecked events live in `disabled`, everything else (incl. new events)
+  // is on by default.
   buildFilterList();
   applyFilter();
 
@@ -91,8 +92,8 @@ function noticeRow(text) {
 }
 document.getElementById('filter-all').onclick = () => setAll(true);
 document.getElementById('filter-none').onclick = () => setAll(false);
-function setAll(on) { enabled = on ? new Set(ALL_EVENTS) : new Set(); filterList.querySelectorAll('input').forEach((cb) => cb.checked = on); saveFilters(); applyFilter(); }
-function applyFilter() { logEl.querySelectorAll('.row').forEach((r) => { r.style.display = enabled.has(r.dataset.name) ? '' : 'none'; }); }
+function setAll(on) { disabled = on ? new Set() : new Set(ALL_EVENTS); filterList.querySelectorAll('input').forEach((cb) => cb.checked = on); saveDisabled(); applyFilter(); }
+function applyFilter() { logEl.querySelectorAll('.row').forEach((r) => { r.style.display = isEnabled(r.dataset.name) ? '' : 'none'; }); }
 
 document.getElementById('clear').onclick = () => { logEl.innerHTML = ''; };
 document.getElementById('min').onclick = () => selfWindowId && overwolf.windows.minimize(selfWindowId, () => {});
@@ -122,7 +123,7 @@ function render(entry) {
   if (name === 'HELPER_STARTED' && data && Array.isArray(data.events)) applyCatalog(data);
   const row = document.createElement('div');
   row.className = 'row'; row.dataset.name = name;
-  if (!enabled.has(name)) row.style.display = 'none';
+  if (!isEnabled(name)) row.style.display = 'none';
   row.innerHTML =
     `<div class="time">${new Date(at).toLocaleTimeString()}</div>` +
     `<div class="name ${NAME_CLASS[name] || ''}">${name}</div>` +
