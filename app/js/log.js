@@ -50,7 +50,7 @@ filterBtn.onclick = () => filterPanel.classList.toggle('open');
 document.addEventListener('click', (e) => { if (!filterPanel.contains(e.target) && e.target !== filterBtn) filterPanel.classList.remove('open'); });
 function buildFilterList() {
   filterList.innerHTML = '';
-  for (const name of ALL_EVENTS) {
+  for (const name of [...ALL_EVENTS].sort((a, b) => a.localeCompare(b))) {
     const lbl = document.createElement('label');
     const doc = EVENT_DOCS[name];
     if (doc && doc.description) lbl.title = doc.description;   // hover shows the event's description
