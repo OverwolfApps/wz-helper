@@ -64,6 +64,12 @@ namespace WarzoneHelper.Game
         {
             var cfg = ctx.Config as WarzoneConfig ?? new WarzoneConfig();
 
+            #region OCR dump (debug data collection)
+            OcrDump.Enabled = cfg.DebugDumpOcr;
+            if (cfg.DebugDumpOcr)
+                OcrDump.Init(System.IO.Path.Combine(HelperConfig.GameDataDir(Name), "dumps"));
+            #endregion
+
             // Screen CV (only when a frame source is available).
             if (ctx.FrameSource != null)
             {

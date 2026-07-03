@@ -48,6 +48,10 @@ namespace WarzoneHelper.Game
         /// <summary>Name-similarity (0..1) at/above which a new read is linked to an existing cached
         /// player instead of creating a new one (kills OCR-variant duplicates / made-up players).</summary>
         public double PlayerFuzzyThreshold { get; set; } = 0.84;
+        /// <summary>Debug: append unique raw OCR reads (party codes, lobby ids, version watermarks,
+        /// chat/feed/inspect, ...) to txt files under %APPDATA%\GameHelper\warzone\dumps so we can
+        /// find patterns for strings we don't fully parse yet. Off in normal use.</summary>
+        public bool DebugDumpOcr { get; set; } = false;
         /// <summary>When true, newly-confirmed player names are validated online against Activision's
         /// checkUsername endpoint (in the background); a name it explicitly rejects is dropped.
         /// NOTE: that endpoint is behind Akamai bot management and returns 403 to automated requests
@@ -103,8 +107,9 @@ namespace WarzoneHelper.Game
         public Region TopBar { get; set; } = new Region("topleft", 0.06, 0.0, 0.70, 0.032);
         // Killfeed + event log, left-middle ("<killer> [icon] <victim>" and "<player> Disconnected").
         public Region Feed { get; set; } = new Region("left", 0.0, 0.015, 0.18, 0.17);
-        // "YOUR PARTY CODE" value (big centered code, e.g. LLJGJ) on the party-code menu.
-        public Region PartyCode { get; set; } = new Region("center", 0.0, -0.1325, 0.12, 0.075);
+        // "YOUR PARTY CODE" value (big centered code, e.g. 6V4DK) on the party-code menu. Tight box
+        // over just the code — tune with the region editor (use the OCR dump to confirm it reads it).
+        public Region PartyCode { get; set; } = new Region("center", 0.0, -0.10, 0.14, 0.06);
         // Inspect-player detail panel (right side): name#id, platform, level, rank, input.
         public Region Inspect { get; set; } = new Region("topright", 0.02, 0.10, 0.32, 0.76);
     }
