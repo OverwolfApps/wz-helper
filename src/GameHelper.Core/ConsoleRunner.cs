@@ -83,7 +83,7 @@ namespace GameHelper.Core
                 var json = evt.ToJson();
                 Console.Out.WriteLine(json);
                 events?.WriteLine(json);
-                ws?.Broadcast(json);
+                ws?.Broadcast(json, evt.Name);
             };
             core.Bus.OnLog += msg =>
             {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
@@ -19,9 +20,11 @@ namespace GameHelper.Core.Net
     /// Wire protocol (text frames, one JSON object each):
     ///   server -> client : the HelperEvent JSON, verbatim
     ///   client -> server : {"type":"gep","name":"match_start","data":"..."}   (relayed to core)
-    ///                      {"type":"hello"}  -> server replays the full recent-event backlog
+    ///                      {"type":"hello"}  -> current-state snapshot: the last occurrence of each
+    ///                          event whose latest scrolled out of the backlog, then the recent
+    ///                          backlog (so single-valued state survives AND per-entity/history does)
     ///                      {"type":"list_events","max":N|"all"}  -> replays the last N buffered
-    ///                          events (or all of them) so a client can recover ones it missed
+    ///                          raw events (or all of them) so a client can recover ones it missed
     /// </summary>
     public sealed class EventWebSocketServer : IDisposable
     {
@@ -41,9 +44,12 @@ namespace GameHelper.Core.Net
         }
         private readonly ConcurrentDictionary<Guid, Client> _clients = new ConcurrentDictionary<Guid, Client>();
 
-        // Recent-event backlog so a freshly-opened UI window isn't blank and clients can recover
-        // events they missed (hello / list_events).
+        // Recent-event backlog (raw, capped) for list_events, plus the last occurrence of EACH event
+        // name (unbounded but tiny) for the hello current-state snapshot.
         private readonly Queue<string> _backlog = new Queue<string>();
+        private readonly Dictionary<string, (long seq, string json)> _lastByName =
+            new Dictionary<string, (long, string)>();
+        private long _seq;
         private readonly object _backlogLock = new object();
         private const int BacklogMax = 500;
 
@@ -155,7 +161,7 @@ namespace GameHelper.Core.Net
                         }
                         break;
                     case "hello":
-                        SendBacklog(client, -1); // all
+                        SendHelloSnapshot(client); // last-of-each state (even if scrolled out) + recent backlog
                         break;
                     case "list_events":
                         // {"max": N} -> last N buffered events; "all" or missing -> everything.
@@ -172,8 +178,8 @@ namespace GameHelper.Core.Net
             catch { /* ignore malformed control frames */ }
         }
 
-        /// <summary>Replay buffered events to one client: the last <paramref name="take"/> of them,
-        /// or all when take &lt; 0.</summary>
+        /// <summary>Replay buffered raw events to one client: the last <paramref name="take"/> of
+        /// them, or all when take &lt; 0.</summary>
         private void SendBacklog(Client client, int take)
         {
             string[] snapshot;
@@ -182,16 +188,42 @@ namespace GameHelper.Core.Net
             for (int i = start; i < snapshot.Length; i++) _ = SendTo(client, snapshot[i]);
         }
 
-        /// <summary>Broadcast an event JSON line to all connected clients.</summary>
-        public void Broadcast(string json)
+        /// <summary>Replay on connect: first the last occurrence of each event whose latest has
+        /// scrolled OUT of the raw backlog (so single-valued state like MATCH_STATE_CHANGED /
+        /// PARTY_CODE_CHANGED is never lost), then the recent raw backlog (which preserves per-entity
+        /// events like every PLAYER_JOINED and the chat/killfeed history).</summary>
+        private void SendHelloSnapshot(Client client)
+        {
+            List<string> supplement, backlog;
+            lock (_backlogLock)
+            {
+                var inBacklog = new HashSet<string>(_backlog);
+                supplement = _lastByName.Values.OrderBy(v => v.seq)
+                    .Select(v => v.json).Where(j => !inBacklog.Contains(j)).ToList();
+                backlog = _backlog.ToList();
+            }
+            foreach (var line in supplement) _ = SendTo(client, line);
+            foreach (var line in backlog) _ = SendTo(client, line);
+        }
+
+        /// <summary>Broadcast an event JSON line to all connected clients. <paramref name="name"/> is
+        /// the event name (for the per-event snapshot); parsed from the JSON if not supplied.</summary>
+        public void Broadcast(string json, string name = null)
         {
             lock (_backlogLock)
             {
                 _backlog.Enqueue(json);
                 while (_backlog.Count > BacklogMax) _backlog.Dequeue();
+                var key = name ?? TryGetName(json);
+                if (key != null) _lastByName[key] = (++_seq, json);
             }
             foreach (var kv in _clients)
                 _ = SendTo(kv.Value, json);
+        }
+
+        private static string TryGetName(string json)
+        {
+            try { return JObject.Parse(json).Value<string>("name"); } catch { return null; }
         }
 
         private async Task SendTo(Client client, string json)
