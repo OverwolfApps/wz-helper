@@ -57,20 +57,31 @@ namespace WarzoneHelper.Game
             Validate = v => Regex.IsMatch(v, @"^\d{1,2}\.\d{1,2}\.\d{4,}") && v.Length >= 20,
         };
 
-        /// <summary>A player name: 2-24 chars, not UI chrome, contains a real letter run, and has a
-        /// lowercase letter / digit / clan-tag (rejects all-caps UI headers).</summary>
+        /// <summary>A Warzone/Activision display name. Per the in-game rule an Activision ID display
+        /// name is 2-16 characters, unicode letters + digits (no special characters; underscore is
+        /// tolerated since it occurs in real ids). We allow an optional leading clan tag "[TAG]" and
+        /// a trailing "#activisionId" around it (in-game framing), strip those, then validate the
+        /// core name against the 2-16 rule. Still rejects UI chrome and requires a letter.</summary>
         public static readonly OcrField PlayerName = new OcrField
         {
             Name = "playerName",
             Whitelist = null,           // names vary too much to whitelist; validate by shape
             MinLength = 2,
-            MaxLength = 24,
+            MaxLength = 30,             // coarse guard (tag + name + #id); the 2-16 rule is enforced on the core
             Establish = 2, Overturn = 4, Window = 12,
             Reject = Chrome,
             Pattern = null,
             Validate = v =>
-                Regex.IsMatch(v, "[A-Za-z]{3,}") &&
-                (v.Any(char.IsLower) || v.Any(char.IsDigit) || v.Contains('['))
+            {
+                // Strip an optional leading clan tag "[TAG]" and a trailing "#1234567" (Activision id).
+                var core = Regex.Replace(v, @"^\[[^\]]{1,6}\]\s*", "");
+                core = Regex.Replace(core, @"\s*#\d+$", "").Trim();
+                // Activision display name: 2-16 chars, unicode letters/digits (+ underscore), no
+                // special characters, and at least one letter (rejects all-digit OCR noise).
+                return core.Length >= 2 && core.Length <= 16
+                    && Regex.IsMatch(core, @"^[\p{L}\p{N}_]+$")
+                    && Regex.IsMatch(core, @"\p{L}");
+            }
         };
 
         /// <summary>"name#1234567" spectated-player id.</summary>
