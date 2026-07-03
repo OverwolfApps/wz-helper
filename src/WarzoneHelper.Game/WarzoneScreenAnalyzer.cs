@@ -122,8 +122,11 @@ namespace WarzoneHelper.Game
                     s.PartyLines = ScreenOps.SplitLines(ReadRegion(frame, _regions.Party, null, singleLine: false));
                     s.PartyIsMatchList = (s.PartyLines?.Length ?? 0) > 8;
                     // Party/invite code (party-code menu). Confidence-gated; persists once set.
+                    // Party/invite code: the center-region OCR is unreliable (reads noise / codes that
+                    // don't match), so we DON'T emit from it — the ClipboardPartyCodeMonitor is the
+                    // authoritative source. We still read + dump it so the region can be tuned later.
                     var partyCodeRaw = ReadRegion(frame, _regions.PartyCode, OcrFields.PartyCode.Whitelist, singleLine: true);
-                    _partyCode.Observe(partyCodeRaw);
+                    // _partyCode.Observe(partyCodeRaw);   // disabled: clipboard is the source
                     // Inspect-player detail panel (rich per-player data; only parses on that screen).
                     s.Inspect = InspectParser.Parse(ReadRegion(frame, _regions.Inspect, null, singleLine: false));
                     #region OCR dump — only the validated code
