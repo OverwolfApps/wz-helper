@@ -30,7 +30,7 @@ namespace WarzoneHelper.Game
         private bool? _wasCapturing;
 
         // Prior state for change detection
-        private double? _lastHealth;
+        // private double? _lastHealth;   // health disabled
         private bool _lastDead;
         private bool _lastDeploy;
 
@@ -90,24 +90,23 @@ namespace WarzoneHelper.Game
 
         private void Evaluate(ScreenState s, bool inMatch)
         {
-            // Health (only meaningful in a match; skip lobby/menu preview noise)
-            if (inMatch && s.HealthFraction.HasValue)
-            {
-                double h = Math.Round(s.HealthFraction.Value, 2);
-                if (!_lastHealth.HasValue || Math.Abs(h - _lastHealth.Value) >= 0.08)
-                {
-                    var prev = _lastHealth;
-                    _lastHealth = h;
-                    WarzoneEvents.HealthChanged.Emit(_bus, e => e
-                        .With("health", h).With("previous", prev));
-                }
-            }
+            // Health disabled — the bar-fill estimate is unreliable and unused. (Commented out.)
+            // if (inMatch && s.HealthFraction.HasValue)
+            // {
+            //     double h = Math.Round(s.HealthFraction.Value, 2);
+            //     if (!_lastHealth.HasValue || Math.Abs(h - _lastHealth.Value) >= 0.08)
+            //     {
+            //         var prev = _lastHealth;
+            //         _lastHealth = h;
+            //         WarzoneEvents.HealthChanged.Emit(_bus, e => e.With("health", h).With("previous", prev));
+            //     }
+            // }
 
-            // Death (require 2 consecutive frames to fire, and reset when it clears). In-match only.
+            // Death (red banner; require 2 consecutive frames to fire, reset when it clears). In-match only.
             if (inMatch && s.DeathBannerVisible == true) _deadStreak++; else _deadStreak = 0;
             bool dead = _deadStreak >= 2;
             if (dead && !_lastDead)
-                WarzoneEvents.PlayerDead.Emit(_bus, e => e.With("health", _lastHealth));
+                WarzoneEvents.PlayerDead.Emit(_bus);
             _lastDead = dead;
 
             // Deploy prompt
@@ -243,7 +242,7 @@ namespace WarzoneHelper.Game
 
         private void Reset()
         {
-            _lastHealth = null; _lastDead = false; _lastDeploy = false;
+            _lastDead = false; _lastDeploy = false;
             _deadStreak = _deployStreak = 0;
             _chatVotes.Clear();
             // _lobby (StableValue) intentionally kept across matches until a new id stabilizes.

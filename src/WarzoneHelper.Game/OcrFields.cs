@@ -74,8 +74,15 @@ namespace WarzoneHelper.Game
             Establish = 2, Overturn = 4, Window = 12,
             Reject = Chrome,
             Pattern = null,
-            Validate = v => IsValidDisplayName(CoreName(v)),
+            Validate = v => NamePattern.IsMatch(v),
         };
+
+        /// <summary>Player-name regex (named groups tag/name/discriminator). The active game profile
+        /// sets this from IGameProfile.PlayerNamePattern; the default is the Warzone pattern (clan tag
+        /// 1-5 chars, 2-16 unicode name requiring a letter, optional #discriminator).</summary>
+        public static Regex NamePattern = new Regex(
+            @"^(?:\[(?<tag>[^\]]{1,5})\])?\s*(?<name>(?=[\p{L}\p{N} _.\-]*\p{L})[\p{L}\p{N} _.\-]{2,16})\s*(?:#(?<discriminator>\d{5,12}))?$",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         /// <summary>Strip an optional leading clan tag "[TAG]" and trailing "#1234567" to the bare name.</summary>
         public static string CoreName(string v)
@@ -139,7 +146,9 @@ namespace WarzoneHelper.Game
             MaxLength = 6,
             Establish = 3, Overturn = 6, Window = 16,
             Clean = s => new string(s.Where(c => char.IsLetterOrDigit(c)).ToArray()).ToUpperInvariant(),
-            Pattern = new Regex(@"^(?<v>[A-Z0-9]{4,6})$", RegexOptions.Compiled)
+            Pattern = new Regex(@"^(?<v>[A-Z0-9]{4,6})$", RegexOptions.Compiled),
+            // "SSSION"/"SESSION" is a recurring OCR false positive (from the word SESSION nearby).
+            Reject = new[] { "sssion", "session" },
         };
 
         /// <summary>Chat channel tag: MATCH / PARTY / SQUAD / ALL.</summary>

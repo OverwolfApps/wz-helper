@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using GameHelper.Core;
 using GameHelper.Core.Config;
 using GameHelper.Core.Events;
@@ -15,6 +16,17 @@ namespace WarzoneHelper.Game
     public sealed class WarzoneProfile : IGameProfile
     {
         public string Name => "warzone";
+
+        // Activision display name: optional [tag] (1-5 chars), 2-16 unicode name (must contain a
+        // letter), optional #discriminator. Named groups: tag / name / discriminator.
+        public string PlayerNamePattern =>
+            @"^(?:\[(?<tag>[^\]]{1,5})\])?\s*(?<name>(?=[\p{L}\p{N} _.\-]*\p{L})[\p{L}\p{N} _.\-]{2,16})\s*(?:#(?<discriminator>\d{5,12}))?$";
+
+        public WarzoneProfile()
+        {
+            // The OCR name validation reuses this profile's pattern.
+            Game.OcrFields.NamePattern = new Regex(PlayerNamePattern, RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        }
 
         public HelperConfig CreateDefaultConfig() => new WarzoneConfig();
 
@@ -61,6 +73,9 @@ namespace WarzoneHelper.Game
 
             // Unified player roster — consumes list/chat/killfeed events, emits PLAYER_* deltas.
             yield return new PlayerRoster(cfg, ctx.Bus);
+
+            // Clipboard watcher — catches copied party codes the OCR can't read.
+            yield return new ClipboardPartyCodeMonitor(ctx.Bus);
         }
     }
 }

@@ -12,7 +12,7 @@ namespace WarzoneHelper.Game
     /// <summary>Result of analysing a single frame. Nulls mean "not determined this frame".</summary>
     public sealed class ScreenState
     {
-        public double? HealthFraction;   // 0..1 estimate from the health bar fill
+        // public double? HealthFraction;   // health disabled (unreliable, unused)
         public bool? DeathBannerVisible;
         public bool? DeployBannerVisible;
         public string LobbyId;
@@ -72,7 +72,7 @@ namespace WarzoneHelper.Game
             s.DeployBannerVisible = DetectBrightBanner(frame, _regions.DeployBanner, minRatio: 0.25);
             if (inMatch)
             {
-                s.HealthFraction = EstimateHealth(frame, _regions.Health);
+                // Health disabled (unreliable, unused): s.HealthFraction = EstimateHealth(frame, _regions.Health);
                 s.DeathBannerVisible = DetectReddishBanner(frame, _regions.DeathBanner, minRatio: 0.10);
             }
 
@@ -175,9 +175,9 @@ namespace WarzoneHelper.Game
         // HUD CV heuristics — thin Warzone wrappers over the generic ScreenOps pixel samplers; only
         // the region + pixel predicate/threshold are game-specific.
 
-        /// <summary>Health bar: fraction of the bar mid-line that is "filled" (bright vs dark track).</summary>
-        private static double EstimateHealth(Bitmap b, Region region) =>
-            ScreenOps.RowRatio(b, ToRect(b, region), c => ScreenOps.Luminance(c) > 90);
+        // Health disabled (unreliable, unused):
+        // private static double EstimateHealth(Bitmap b, Region region) =>
+        //     ScreenOps.RowRatio(b, ToRect(b, region), c => ScreenOps.Luminance(c) > 90);
 
         /// <summary>Detects a predominantly red banner (death / damage indicator).</summary>
         private static bool DetectReddishBanner(Bitmap b, Region region, double minRatio) =>

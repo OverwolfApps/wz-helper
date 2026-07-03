@@ -28,13 +28,13 @@ namespace WarzoneHelper.Game
             GameUdpPortRangeStart = new[] { 27000 };
             GameUdpPortRangeEnd = new[] { 27031 };
 
-            // Warzone connects to TWO servers on :44998 per match (back-to-back): a low-throughput
-            // lobby/session server (~3-7 KB/s) then the actual gameplay server (~15-37 KB/s). Event
-            // logs show a clean gap, so require ~10 KB/s to count a peer as the game server — this
-            // isolates the real match server (and keeps Demonware :3074 bursts out). Tune if a real
-            // match ever fails to register.
-            GameServerTrafficBytesPerSec = 10000; // high-traffic candidate gate (non-game-port, e.g. :44998)
-            GameServerMinBytesPerSec = 10000;     // promotion gate (also filters game-port backend bursts)
+            // Warzone connects to TWO servers on :44998 per match (back-to-back): a lower-throughput
+            // lobby/session server then the actual gameplay server (~15-37 KB/s). We still ANNOUNCE
+            // both (>=Traffic B/s) so nothing vanishes from the logs, but only the high-throughput one
+            // (>=Min B/s) is classified as the game server that flips the in-match state — the lower
+            // one shows as a SERVICE. Tune the split if a real match ever fails to register.
+            GameServerTrafficBytesPerSec = 3000;  // announce floor (below this = ignored idle UDP)
+            GameServerMinBytesPerSec = 13000;     // game-server vs service split (only >= this flips in-match)
 
             // Activision status API + CoD title filter
             StatusApiUrl = "https://prod-psapi.infra-ext.activision.com/open/api/apexrest/oshp/landingpage";

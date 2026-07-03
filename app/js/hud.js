@@ -6,11 +6,20 @@ document.getElementById('close').onclick = () => selfWindowId && overwolf.window
 
 const els = {
   game: document.getElementById('s-game'), match: document.getElementById('s-match'),
+  players: document.getElementById('s-players'), squad: document.getElementById('s-squad'),
   server: document.getElementById('s-server'),
-  ping: document.getElementById('s-ping'), health: document.getElementById('s-health'),
+  ping: document.getElementById('s-ping'),
   lobby: document.getElementById('s-lobby'), party: document.getElementById('s-party'),
   status: document.getElementById('s-status'),
 };
+
+// Live roster for the player/squad counts (key -> team), from PLAYER_* deltas.
+const roster = new Map();
+function updateCounts() {
+  const teams = [...roster.values()];
+  setField(els.players, String(teams.length));
+  setField(els.squad, String(teams.filter(t => t === 'self' || t === 'squad').length));
+}
 const bar = document.querySelector('.bar');
 
 // Hide every field until it has a value; party code persists across matches.
@@ -59,9 +68,12 @@ try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.ev
 function update(name, d) {
   if (!d) return;
   switch (name) {
-    case 'GAME_PROCESS_STARTED': setField(els.game, 'running'); break;
-    case 'GAME_PROCESS_STOPPED': setField(els.game, 'closed'); break;
+    case 'GAME_PROCESS_STARTED': setField(els.game, String((d.pids && d.pids[0]) || 'running')); break;
+    case 'GAME_PROCESS_STOPPED': setField(els.game, 'closed'); roster.clear(); updateCounts(); break;
     case 'MATCH_STATE_CHANGED': setField(els.match, d.inMatch ? 'in match' : 'lobby', d.inMatch ? 'ok' : 'warn'); break;
+    case 'PLAYER_JOINED':
+    case 'PLAYER_CHANGED': if (d.key) { roster.set(d.key, d.team); updateCounts(); } break;
+    case 'PLAYER_LEFT': if (d.key) { roster.delete(d.key); updateCounts(); } break;
     case 'GAME_SERVER_CONNECTED':
       setFieldHtml(els.server, `${flagImg(d.countryIso)}${d.city || d.countryIso || d.ip}${d.isLikelyVPN?' ⚠':''}`);
       setField(els.ping, d.pingMs >= 0 ? `${d.pingMs} ms` : (d.bytesPerSec ? `n/a · ${d.bytesPerSec} B/s` : 'n/a')); break;
@@ -71,8 +83,6 @@ function update(name, d) {
       if (net != null || game != null) setField(els.ping, net != null ? `${net} ms${game != null ? ` (game ${game})` : ''}` : `game ${game} ms`);
       break;
     }
-    case 'HEALTH_CHANGED': setField(els.health, `${Math.round((d.health||0)*100)}%`); break;
-    case 'PLAYER_DEAD': setField(els.health, 'DEAD'); break;
     case 'LOBBY_ID_CHANGED': setField(els.lobby, d.lobbyId); break;
     case 'PARTY_CODE_CHANGED':
       if (d.code) { setField(els.party, d.code); localStorage.setItem('wzh_partycode', d.code); }

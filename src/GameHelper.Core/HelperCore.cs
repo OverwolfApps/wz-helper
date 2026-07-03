@@ -126,37 +126,30 @@ namespace GameHelper.Core
             catch (Exception ex) { _bus.Log($"[ocr] init failed: {ex.Message}"); return new NullOcrEngine(); }
         }
 
+        // Game-server endpoints currently connected. A high-throughput game server is the most
+        // reliable "in a match" signal (far more than GEP/CV); we stay in-match while ANY is
+        // connected so the back-to-back two-server dance doesn't toggle the flag off mid-match.
+        private readonly HashSet<string> _gameServers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         private void UpdateMatchState(HelperEvent evt)
         {
             switch (evt.Name)
             {
-                // A confirmed high-throughput game server is the most reliable "in a match" signal —
-                // far more dependable than GEP/CV. Presence => in match, drop => out.
                 case EventNames.GameServerConnected:
-                    _match.Set(true);
+                    lock (_gameServers) { _gameServers.Add(Ep(evt)); _match.Set(_gameServers.Count > 0); }
                     break;
                 case EventNames.GameServerDisconnected:
-                    _match.Set(false);
+                    lock (_gameServers) { _gameServers.Remove(Ep(evt)); _match.Set(_gameServers.Count > 0); }
                     break;
-                case EventNames.MatchStarted:
-                case EventNames.Deployed:
-                    _match.Set(true);
-                    break;
-                case EventNames.MatchEnded:
                 case EventNames.GameProcessStopped:
-                    _match.Set(false);
-                    break;
-                case EventNames.SceneChanged:
-                    // GEP scene value arrives as the "raw" payload (e.g. "in_game", "lobby_wz").
-                    if (evt.Data != null && evt.Data.TryGetValue("raw", out var raw) && raw != null)
-                    {
-                        var scene = raw.ToString();
-                        if (scene.IndexOf("in_game", StringComparison.OrdinalIgnoreCase) >= 0) _match.Set(true);
-                        else if (scene.IndexOf("lobby", StringComparison.OrdinalIgnoreCase) >= 0) _match.Set(false);
-                    }
+                    lock (_gameServers) { _gameServers.Clear(); _match.Set(false); }  // game closed => not in match
                     break;
             }
         }
+
+        private static string Ep(HelperEvent e) =>
+            $"{(e.Data != null && e.Data.TryGetValue("ip", out var ip) ? ip : null)}:" +
+            $"{(e.Data != null && e.Data.TryGetValue("port", out var p) ? p : null)}";
 
         /// <summary>Feed an externally captured frame (Overwolf in-memory screenshot bytes).</summary>
         public void PushFrame(byte[] imageBytes) => _pushedSource?.Push(imageBytes);

@@ -43,6 +43,10 @@ namespace GameHelper.Core
         /// <summary>The game's perf-strip OCR whitelist (get/set so ocr.jsonc can override it).</summary>
         string PerfStripWhitelist { get; set; }
 
+        /// <summary>Regex (with named groups tag/name/discriminator) a valid player name must match,
+        /// or null to use the built-in shape check. Reused for OCR name validation.</summary>
+        string PlayerNamePattern { get; }
+
         /// <summary>Parser for the status-API response body, or null to use the generic raw-body
         /// default. Lets a game interpret its vendor's status shape without Core knowing it.</summary>
         IStatusParser CreateStatusParser(HelperConfig cfg);

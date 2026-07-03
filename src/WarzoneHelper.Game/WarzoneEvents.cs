@@ -39,13 +39,13 @@ namespace WarzoneHelper.Game
             F("status", "object", "current status fields (per-issue)"),
             F("previous", "string", "previous signature (per-issue)"));
 
-        public static readonly EventDef HealthChanged = new EventDef(
-            EventNames.HealthChanged, EventSource.ScreenCv, "Health bar fill changed.",
-            F("health", "number", "0..1 fill fraction"), F("previous", "number", "prior fraction"));
+        // Health disabled (unreliable, unused):
+        // public static readonly EventDef HealthChanged = new EventDef(
+        //     EventNames.HealthChanged, EventSource.ScreenCv, "Health bar fill changed.",
+        //     F("health", "number", "0..1 fill fraction"), F("previous", "number", "prior fraction"));
 
         public static readonly EventDef PlayerDead = new EventDef(
-            EventNames.PlayerDead, EventSource.ScreenCv, "Local player death detected (red banner).",
-            F("health", "number", "health at death"));
+            EventNames.PlayerDead, EventSource.ScreenCv, "Local player death detected (red banner).");
 
         public static readonly EventDef Deployed = new EventDef(
             EventNames.Deployed, EventSource.ScreenCv, "Deploy/parachute prompt detected.");

@@ -130,17 +130,18 @@ namespace GameHelper.Core.Monitors
 
             if (proto == "UDP" && isGameCandidate)
             {
-                // Promote to game server only once it persists, has enough throughput, and (optionally)
-                // we believe we're in a match. These filters exist because lobby/matchmaking traffic
-                // also uses game ports — they need tuning against real in-match captures.
+                // Announce any candidate that persists and carries real traffic (>= Traffic). Peers at
+                // or above the Min split are the game/match server (they flip in-match); lower-traffic
+                // peers (e.g. the lobby/session server) are still logged, as a SERVICE. matchOk lets a
+                // profile require in-match first (off by default).
                 bool persisted = t.SeenPolls >= _cfg.GameServerConfirmPolls;
-                bool throughputOk = _cfg.GameServerMinBytesPerSec <= 0 ||
-                                    (t.BytesSent + t.BytesRecv) / UdpWindowSeconds >= _cfg.GameServerMinBytesPerSec;
+                double rate = (t.BytesSent + t.BytesRecv) / UdpWindowSeconds;
+                bool announceOk = _cfg.GameServerTrafficBytesPerSec <= 0 || rate >= _cfg.GameServerTrafficBytesPerSec;
                 bool matchOk = !_cfg.GameServerRequireInMatch || (_match != null && _match.InMatch);
 
-                if (persisted && throughputOk && matchOk)
+                if (persisted && announceOk && matchOk)
                 {
-                    t.IsGameServer = true;
+                    t.IsGameServer = _cfg.GameServerMinBytesPerSec <= 0 || rate >= _cfg.GameServerMinBytesPerSec;
                     Announce(t, connected: true);
                 }
             }
