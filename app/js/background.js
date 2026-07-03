@@ -93,6 +93,16 @@ function flushGepQueue() {
   }
 }
 
+// Ask the agent to replay buffered events we may have missed. max = a number (last N) or 'all'
+// (default). Replayed events arrive on the normal onmessage path, so they render like live ones.
+// UI windows call this via overwolf.windows.getMainWindow().wzh.requestEvents(N).
+function requestEvents(max) {
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return false;
+  try { state.ws.send(JSON.stringify({ type: 'list_events', max: (max == null ? 'all' : max) })); return true; }
+  catch (e) { return false; }
+}
+state.requestEvents = requestEvents;
+
 function wireGep() {
   try {
     registerCodGep((gepName, gepData) => sendGep(gepName, gepData));

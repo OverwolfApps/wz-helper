@@ -19,7 +19,9 @@ namespace GameHelper.Core.Net
     /// Wire protocol (text frames, one JSON object each):
     ///   server -> client : the HelperEvent JSON, verbatim
     ///   client -> server : {"type":"gep","name":"match_start","data":"..."}   (relayed to core)
-    ///                      {"type":"hello"}  -> server replies with a backlog of recent events
+    ///                      {"type":"hello"}  -> server replays the full recent-event backlog
+    ///                      {"type":"list_events","max":N|"all"}  -> replays the last N buffered
+    ///                          events (or all of them) so a client can recover ones it missed
     /// </summary>
     public sealed class EventWebSocketServer : IDisposable
     {
@@ -39,10 +41,11 @@ namespace GameHelper.Core.Net
         }
         private readonly ConcurrentDictionary<Guid, Client> _clients = new ConcurrentDictionary<Guid, Client>();
 
-        // Small backlog so a freshly-opened UI window isn't blank.
+        // Recent-event backlog so a freshly-opened UI window isn't blank and clients can recover
+        // events they missed (hello / list_events).
         private readonly Queue<string> _backlog = new Queue<string>();
         private readonly object _backlogLock = new object();
-        private const int BacklogMax = 200;
+        private const int BacklogMax = 500;
 
         public EventWebSocketServer(string host, int port, Action<string> log,
             Action<string, string> onGep, Action<byte[]> onFrame = null)
@@ -152,13 +155,31 @@ namespace GameHelper.Core.Net
                         }
                         break;
                     case "hello":
-                        string[] snapshot;
-                        lock (_backlogLock) snapshot = _backlog.ToArray();
-                        foreach (var line in snapshot) _ = SendTo(client, line);
+                        SendBacklog(client, -1); // all
+                        break;
+                    case "list_events":
+                        // {"max": N} -> last N buffered events; "all" or missing -> everything.
+                        var maxTok = o["max"];
+                        int take = -1;
+                        if (maxTok != null && maxTok.Type != JTokenType.Null &&
+                            !(maxTok.Type == JTokenType.String &&
+                              string.Equals(maxTok.Value<string>(), "all", StringComparison.OrdinalIgnoreCase)))
+                            try { take = maxTok.Value<int>(); } catch { take = -1; }
+                        SendBacklog(client, take);
                         break;
                 }
             }
             catch { /* ignore malformed control frames */ }
+        }
+
+        /// <summary>Replay buffered events to one client: the last <paramref name="take"/> of them,
+        /// or all when take &lt; 0.</summary>
+        private void SendBacklog(Client client, int take)
+        {
+            string[] snapshot;
+            lock (_backlogLock) snapshot = _backlog.ToArray();
+            int start = (take >= 0 && take < snapshot.Length) ? snapshot.Length - take : 0;
+            for (int i = start; i < snapshot.Length; i++) _ = SendTo(client, snapshot[i]);
         }
 
         /// <summary>Broadcast an event JSON line to all connected clients.</summary>
