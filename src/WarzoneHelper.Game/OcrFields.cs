@@ -84,6 +84,19 @@ namespace WarzoneHelper.Game
             @"^(?:\[(?<tag>[^\]]{1,5})\])?\s*(?<name>(?=[\p{L}\p{N} _.\-]*\p{L})[\p{L}\p{N} _.\-]{2,16})\s*(?:#(?<discriminator>\d{5,12}))?$",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+        private static readonly Regex LeadingEdgeToken = new Regex(@"^[\p{L}\p{N}]{1,2}[\s,]+", RegexOptions.Compiled);
+        private static readonly Regex TrailingEdgeToken = new Regex(@"[\s]+[\p{L}\p{N}]{1,2}$", RegexOptions.Compiled);
+
+        /// <summary>Drop a leading/trailing 1-2 char OCR-artifact token next to a name — rank-emblem
+        /// or platform-icon bleed misread as a short token, e.g. "1f RealName" or "RealName xx" →
+        /// "RealName". Only applied when a real name (>= 2 chars) remains, so it never nukes the name.</summary>
+        public static string StripEdgeTokens(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            var t = TrailingEdgeToken.Replace(LeadingEdgeToken.Replace(name, ""), "").Trim();
+            return t.Length >= 2 ? t : name;
+        }
+
         /// <summary>Strip an optional leading clan tag "[TAG]" and trailing "#1234567" to the bare name.</summary>
         public static string CoreName(string v)
         {

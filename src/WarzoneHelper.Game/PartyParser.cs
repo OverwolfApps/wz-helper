@@ -83,8 +83,6 @@ namespace WarzoneHelper.Game
             return null;
         }
 
-        private static readonly Regex TrailingJunk = new Regex(@"\s+\p{L}{1,2}$", RegexOptions.Compiled);
-
         private static string CleanName(string s)
         {
             s = (s ?? "").Trim();
@@ -100,10 +98,9 @@ namespace WarzoneHelper.Game
             while (end >= 0 && !(char.IsLetterOrDigit(s[end]) || s[end] == ']')) end--;
             if (end < start) return "";
             var name = Regex.Replace(s.Substring(start, end - start + 1).Trim(), @"\s{2,}", " ");
-            // Drop a leading emblem remnant: a 1-2 letter token followed by a comma (e.g. "K, her again").
-            name = Regex.Replace(name, @"^\p{L}{1,2},\s*", "");
-            // Strip a trailing 1-2 letter token (platform/icon OCR bleed), e.g. "... genuuug re".
-            return TrailingJunk.Replace(name, "").Trim();
+            // Drop leading/trailing 1-2 char OCR-artifact tokens (rank emblem / platform icon bleed,
+            // e.g. "1f RealName", "K, RealName", "RealName xx").
+            return OcrFields.StripEdgeTokens(name);
         }
     }
 }

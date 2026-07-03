@@ -66,7 +66,9 @@ namespace WarzoneHelper.Game
         private static string FirstName(string s)
         {
             var m = NameChunk.Match(s ?? "");
-            return m.Success && TextOps.Norm(m.Value).Length >= 3 ? m.Value.Trim() : null;
+            if (!m.Success) return null;
+            var name = OcrFields.StripEdgeTokens(m.Value.Trim());   // drop emblem/icon bleed like "1f Name"
+            return TextOps.Norm(name).Length >= 3 ? name : null;
         }
 
         private static void Add(List<FeedItem> list, FeedItem it)
