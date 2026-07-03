@@ -40,18 +40,21 @@ namespace WarzoneHelper.Game
 
         /// <summary>On-screen build/version watermark, e.g.
         /// "12.11.27503415[66-0.1019]10413+11:[7400][15][1783011671.pl.Ga.bnet][0001228ec00]".
-        /// We whitelist digits/dots and extract the leading season.minor.build — the part that
-        /// changes on a game update — then confidence-gate it (must read the same for a while).</summary>
+        /// We capture the WHOLE token (a far more unique fingerprint than the bare version) and
+        /// confidence-gate it; GameVersionParser then splits it into named groups. Whitelist covers
+        /// the full charset; Clean strips OCR spaces so the token stays contiguous.</summary>
         public static readonly OcrField GameVersion = new OcrField
         {
             Name = "gameVersion",
-            Whitelist = "0123456789.",
+            Whitelist = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.[]+-:",
             SingleLine = true,
-            MinLength = 8,
-            MaxLength = 24,
-            Establish = 5, Overturn = 8, Window = 20,
-            Pattern = new Regex(@"(?<v>\d{1,2}\.\d{1,2}\.\d{5,})", RegexOptions.Compiled),
-            Validate = v => v.Count(c => c == '.') == 2,
+            MinLength = 20,
+            MaxLength = 80,
+            Establish = 5, Overturn = 8, Window = 24,
+            Clean = s => s.Replace(" ", ""),
+            // v = version core + everything after it (the whole watermark token).
+            Pattern = new Regex(@"(?<v>\d{1,2}\.\d{1,2}\.\d{4,}\S+)", RegexOptions.Compiled),
+            Validate = v => Regex.IsMatch(v, @"^\d{1,2}\.\d{1,2}\.\d{4,}") && v.Length >= 20,
         };
 
         /// <summary>A player name: 2-24 chars, not UI chrome, contains a real letter run, and has a

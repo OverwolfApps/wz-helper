@@ -157,7 +157,10 @@ function summarize(name, d) {
   if (name === 'LOG_LINE_ADDED') return (d.level ? `[${d.level}] ` : '') + (d.line ? d.line.slice(0,160) : '');
   if (name === 'LOG_FILE_ADDED' || name === 'LOG_FILE_REMOVED') return d.path || '';
   if (name === 'MATCH_STATE_CHANGED') return d.inMatch ? '▶ IN MATCH' : '⏹ not in match';
-  if (name === 'GAME_VERSION_CHANGED') return `🏷 version ${d.version}${d.previous ? ` (was ${d.previous})` : ''}`;
+  if (name === 'GAME_VERSION_CHANGED') {
+    const parts = [d.version, d.changelist && ('cl ' + d.changelist), d.epoch && new Date(+d.epoch * 1000).toLocaleDateString()].filter(Boolean).join(' · ');
+    return `🏷 ${parts || d.raw || ''}${d.previous ? ' (updated)' : ''}`;
+  }
   if (name === 'GAME_PROCESS_STARTED') {
     const mb = d.sizeBytes ? Math.round(d.sizeBytes / 1048576) + 'MB' : '';
     const mod = d.modifiedUtc ? new Date(d.modifiedUtc).toLocaleDateString() : '';

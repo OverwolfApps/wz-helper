@@ -92,9 +92,17 @@ namespace WarzoneHelper.Game
 
         public static readonly EventDef GameVersionChanged = new EventDef(
             EventNames.GameVersionChanged, EventSource.ScreenCv,
-            "The on-screen build/version watermark changed (confidence-gated) — i.e. the game updated.",
-            F("version", "string", "leading season.minor.build, e.g. 12.11.27503415"),
-            F("previous", "string", "prior version, or null on first read"));
+            "The on-screen build/version watermark changed (confidence-gated on the WHOLE token) — " +
+            "i.e. the game updated. Split into named parts; each is best-effort.",
+            F("raw", "string", "the whole watermark token"),
+            F("version", "string", "season.minor.build, e.g. 12.11.27503415"),
+            F("config", "string", "config flags in the first brackets, e.g. 66-0.1019"),
+            F("changelist", "string", "changelist number, e.g. 10413"),
+            F("patch", "string", "patch/increment after the '+', e.g. 11"),
+            F("epoch", "string", "build unix timestamp, e.g. 1783011671"),
+            F("platform", "string", "platform tag, e.g. pl.Ga.bnet"),
+            F("hash", "string", "trailing hex build hash, e.g. 0001228ec00"),
+            F("previous", "string", "prior raw token, or null on first read"));
 
         public static readonly EventDef PlayerInspected = new EventDef(
             EventNames.PlayerInspected, EventSource.ScreenCv, "Inspect-player panel details.",

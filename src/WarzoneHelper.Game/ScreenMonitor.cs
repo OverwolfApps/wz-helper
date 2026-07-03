@@ -170,13 +170,17 @@ namespace WarzoneHelper.Game
                 WarzoneEvents.PartyCodeChanged.Emit(_bus, e => e.With("code", s.PartyCode));
             }
 
-            // Build/version watermark (confidence-gated): a change means the game updated.
+            // Build/version watermark (confidence-gated): a change in ANY part means the game updated.
             if (!string.IsNullOrEmpty(s.GameVersion) && s.GameVersion != _lastGameVersion)
             {
                 var prev = _lastGameVersion;
                 _lastGameVersion = s.GameVersion;
-                WarzoneEvents.GameVersionChanged.Emit(_bus, e => e
-                    .With("version", s.GameVersion).With("previous", prev));
+                var parsed = GameVersionParser.Parse(s.GameVersion);   // raw + version/config/changelist/epoch/platform/hash
+                WarzoneEvents.GameVersionChanged.Emit(_bus, e =>
+                {
+                    foreach (var kv in parsed) e.With(kv.Key, kv.Value);
+                    e.With("previous", prev);
+                });
             }
 
             // Inspect-player: emit when a new player's details are read.
