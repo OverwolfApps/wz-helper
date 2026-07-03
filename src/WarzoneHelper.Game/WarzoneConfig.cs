@@ -74,6 +74,8 @@ namespace WarzoneHelper.Game
         public Region Health { get; set; } = new Region("bottom", 0.0, 0.08, 0.16, 0.02);
         // Lobby/session ID (~19 digits), very bottom-left corner (in-match).
         public Region LobbyId { get; set; } = new Region("bottomleft", 0.0, 0.004, 0.11, 0.024);
+        // Build/version watermark ("12.11.27503415[...]") — corner text; tune with the region editor.
+        public Region Version { get; set; } = new Region("bottomleft", 0.0, 0.028, 0.24, 0.02);
         // In-game chat: upper-right stack of "[CHANNEL] name / message" lines.
         public Region Chat { get; set; } = new Region("topright", 0.0, 0.14, 0.23, 0.28);
         // Lobby player panel, top-right (small = your PARTY, large = full MATCH/lobby list).

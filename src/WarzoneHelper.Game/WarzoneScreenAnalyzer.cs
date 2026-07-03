@@ -22,6 +22,7 @@ namespace WarzoneHelper.Game
         public string SpectatingName; // player currently being spectated (id stripped)
         public string SpectatingId;   // the #NNNN suffix, if read
         public string PartyCode;      // cached party/invite code (persists until it changes)
+        public string GameVersion;    // on-screen build/version watermark (confidence-gated)
         public Dictionary<string, object> Inspect; // inspect-player panel details (activisionId, ...)
         public System.Collections.Generic.Dictionary<string, object> Perf; // top overlay telemetry
         public string[] FeedLines;    // killfeed + event-log lines (in-match)
@@ -57,6 +58,7 @@ namespace WarzoneHelper.Game
         private readonly FieldTracker _spectateName = new FieldTracker(OcrFields.PlayerName);
         private readonly FieldTracker _spectateId = new FieldTracker(OcrFields.SpectateId);
         private readonly FieldTracker _partyCode = new FieldTracker(OcrFields.PartyCode);
+        private readonly FieldTracker _gameVersion = new FieldTracker(OcrFields.GameVersion);
 
         public ScreenState Analyze(Bitmap frame, bool inMatch, IList<Rectangle> excluded = null)
         {
@@ -86,6 +88,11 @@ namespace WarzoneHelper.Game
                 var lobbyText = ReadRegion(frame, _regions.LobbyId, OcrFields.LobbyId.Whitelist, singleLine: true);
                 _lobbyId.Observe(lobbyText);       // confidence-gated (validated inside)
                 s.LobbyId = _lobbyId.Value;
+
+                // Build/version watermark (shown in menus and in-match). Confidence-gated so it only
+                // surfaces once it's been read consistently — then a change means the game updated.
+                _gameVersion.Observe(ReadRegion(frame, _regions.Version, OcrFields.GameVersion.Whitelist, singleLine: true));
+                s.GameVersion = _gameVersion.Value;
 
                 if (inMatch)
                 {

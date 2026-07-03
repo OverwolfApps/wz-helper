@@ -51,6 +51,7 @@ namespace WarzoneHelper.Game
         private DateTime _lastPerfEmit = DateTime.MinValue;
         private string _lastPartyCode;
         private string _lastInspectId;
+        private string _lastGameVersion;
 
         public string Name => "screen";
         public IFrameSource Source => _source;
@@ -167,6 +168,15 @@ namespace WarzoneHelper.Game
             {
                 _lastPartyCode = s.PartyCode;
                 WarzoneEvents.PartyCodeChanged.Emit(_bus, e => e.With("code", s.PartyCode));
+            }
+
+            // Build/version watermark (confidence-gated): a change means the game updated.
+            if (!string.IsNullOrEmpty(s.GameVersion) && s.GameVersion != _lastGameVersion)
+            {
+                var prev = _lastGameVersion;
+                _lastGameVersion = s.GameVersion;
+                WarzoneEvents.GameVersionChanged.Emit(_bus, e => e
+                    .With("version", s.GameVersion).With("previous", prev));
             }
 
             // Inspect-player: emit when a new player's details are read.

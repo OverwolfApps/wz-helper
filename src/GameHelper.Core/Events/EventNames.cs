@@ -47,6 +47,7 @@ namespace GameHelper.Core.Events
         public const string SpectatingPlayer = "SPECTATING_PLAYER";
         public const string PerfStats = "PERF_STATS";
         public const string PartyCodeChanged = "PARTY_CODE_CHANGED";
+        public const string GameVersionChanged = "GAME_VERSION_CHANGED"; // on-screen build/version watermark changed
         public const string PlayerInspected = "PLAYER_INSPECTED";
 
         // --- Unified player roster (built from party/match/squad/chat/killfeed sources) ---

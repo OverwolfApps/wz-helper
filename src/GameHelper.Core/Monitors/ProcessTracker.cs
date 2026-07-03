@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using GameHelper.Core.Config;
@@ -47,11 +48,14 @@ namespace GameHelper.Core.Monitors
             try
             {
                 var found = new HashSet<int>();
+                string exePath = null;
                 foreach (var name in _names)
                 {
                     foreach (var p in Process.GetProcessesByName(name))
                     {
                         found.Add(p.Id);
+                        // Capture the exe path of the first match (for version/size details on start).
+                        if (exePath == null) { try { exePath = p.MainModule?.FileName; } catch { /* access denied */ } }
                         p.Dispose();
                     }
                 }
@@ -61,12 +65,39 @@ namespace GameHelper.Core.Monitors
                 if (running != _wasRunning)
                 {
                     _wasRunning = running;
-                    (running ? CoreEvents.GameProcessStarted : CoreEvents.GameProcessStopped)
-                        .Emit(_bus, e => e.With("pids", found.ToArray()));
+                    if (running)
+                        CoreEvents.GameProcessStarted.Emit(_bus, e =>
+                        {
+                            e.With("pids", found.ToArray());
+                            AddExeInfo(e, exePath);
+                        });
+                    else
+                        CoreEvents.GameProcessStopped.Emit(_bus, e => e.With("pids", found.ToArray()));
                     try { RunningChanged?.Invoke(running); } catch { }
                 }
             }
             catch (Exception ex) { _bus.Log($"[process] poll error: {ex.Message}"); }
+        }
+
+        /// <summary>Attach exe path + version/size/mtime (the size and modified-time change on every
+        /// game patch, so consumers can detect updates even when FileVersion is generic).</summary>
+        private static void AddExeInfo(HelperEvent e, string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            e.With("exe", path);
+            try
+            {
+                var fi = new FileInfo(path);
+                if (fi.Exists)
+                    e.With("sizeBytes", fi.Length).With("modifiedUtc", fi.LastWriteTimeUtc.ToString("o"));
+                var vi = FileVersionInfo.GetVersionInfo(path);
+                e.With("fileVersion", vi.FileVersion)
+                 .With("productVersion", vi.ProductVersion)
+                 .With("productName", vi.ProductName)
+                 .With("fileDescription", vi.FileDescription)
+                 .With("company", vi.CompanyName);
+            }
+            catch { /* version info unavailable */ }
         }
 
         public void Stop() { _timer?.Dispose(); _timer = null; }

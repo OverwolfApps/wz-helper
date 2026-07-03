@@ -33,6 +33,7 @@ namespace WarzoneHelper.Game
             new Dictionary<string, OcrField>
             {
                 { Game.OcrFields.LobbyId.Name, Game.OcrFields.LobbyId },
+                { Game.OcrFields.GameVersion.Name, Game.OcrFields.GameVersion },
                 { Game.OcrFields.PlayerName.Name, Game.OcrFields.PlayerName },
                 { Game.OcrFields.Level.Name, Game.OcrFields.Level },
                 { Game.OcrFields.SpectateId.Name, Game.OcrFields.SpectateId },

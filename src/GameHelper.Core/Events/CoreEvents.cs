@@ -82,8 +82,16 @@ namespace GameHelper.Core.Events
             EventNames.ServiceDisconnected, EventSource.Network, "A backend endpoint dropped.", Endpoint());
 
         public static readonly EventDef GameProcessStarted = new EventDef(
-            EventNames.GameProcessStarted, EventSource.Process, "The game process started.",
-            F("pids", "int[]", "matching process ids"));
+            EventNames.GameProcessStarted, EventSource.Process, "The game process started (with exe details for update detection).",
+            F("pids", "int[]", "matching process ids"),
+            F("exe", "string", "full exe path"),
+            F("sizeBytes", "int", "exe size in bytes (changes on patch)"),
+            F("modifiedUtc", "string", "exe last-modified ISO-8601 (changes on patch)"),
+            F("fileVersion", "string", "exe FileVersion"),
+            F("productVersion", "string", "exe ProductVersion"),
+            F("productName", "string", "exe ProductName"),
+            F("fileDescription", "string", "exe FileDescription"),
+            F("company", "string", "exe CompanyName"));
         public static readonly EventDef GameProcessStopped = new EventDef(
             EventNames.GameProcessStopped, EventSource.Process, "The game process exited.",
             F("pids", "int[]", "process ids that were running"));

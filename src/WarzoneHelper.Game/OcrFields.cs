@@ -38,6 +38,22 @@ namespace WarzoneHelper.Game
             }
         };
 
+        /// <summary>On-screen build/version watermark, e.g.
+        /// "12.11.27503415[66-0.1019]10413+11:[7400][15][1783011671.pl.Ga.bnet][0001228ec00]".
+        /// We whitelist digits/dots and extract the leading season.minor.build — the part that
+        /// changes on a game update — then confidence-gate it (must read the same for a while).</summary>
+        public static readonly OcrField GameVersion = new OcrField
+        {
+            Name = "gameVersion",
+            Whitelist = "0123456789.",
+            SingleLine = true,
+            MinLength = 8,
+            MaxLength = 24,
+            Establish = 5, Overturn = 8, Window = 20,
+            Pattern = new Regex(@"(?<v>\d{1,2}\.\d{1,2}\.\d{5,})", RegexOptions.Compiled),
+            Validate = v => v.Count(c => c == '.') == 2,
+        };
+
         /// <summary>A player name: 2-24 chars, not UI chrome, contains a real letter run, and has a
         /// lowercase letter / digit / clan-tag (rejects all-caps UI headers).</summary>
         public static readonly OcrField PlayerName = new OcrField

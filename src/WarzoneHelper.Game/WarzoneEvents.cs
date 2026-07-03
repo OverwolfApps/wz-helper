@@ -90,6 +90,12 @@ namespace WarzoneHelper.Game
             EventNames.PartyCodeChanged, EventSource.ScreenCv, "The invite/party code changed (cached, not per-match).",
             F("code", "string", "party code, e.g. LLJGJ"));
 
+        public static readonly EventDef GameVersionChanged = new EventDef(
+            EventNames.GameVersionChanged, EventSource.ScreenCv,
+            "The on-screen build/version watermark changed (confidence-gated) — i.e. the game updated.",
+            F("version", "string", "leading season.minor.build, e.g. 12.11.27503415"),
+            F("previous", "string", "prior version, or null on first read"));
+
         public static readonly EventDef PlayerInspected = new EventDef(
             EventNames.PlayerInspected, EventSource.ScreenCv, "Inspect-player panel details.",
             F("activisionId", "string", "Activision id"),

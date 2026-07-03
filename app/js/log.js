@@ -157,6 +157,12 @@ function summarize(name, d) {
   if (name === 'LOG_LINE_ADDED') return (d.level ? `[${d.level}] ` : '') + (d.line ? d.line.slice(0,160) : '');
   if (name === 'LOG_FILE_ADDED' || name === 'LOG_FILE_REMOVED') return d.path || '';
   if (name === 'MATCH_STATE_CHANGED') return d.inMatch ? '▶ IN MATCH' : '⏹ not in match';
+  if (name === 'GAME_VERSION_CHANGED') return `🏷 version ${d.version}${d.previous ? ` (was ${d.previous})` : ''}`;
+  if (name === 'GAME_PROCESS_STARTED') {
+    const mb = d.sizeBytes ? Math.round(d.sizeBytes / 1048576) + 'MB' : '';
+    const mod = d.modifiedUtc ? new Date(d.modifiedUtc).toLocaleDateString() : '';
+    return ['running', d.exe ? d.exe.split(/[\\/]/).pop() : '', d.fileVersion ? 'v' + d.fileVersion : '', mb, mod].filter(Boolean).join(' · ');
+  }
   if (name === 'SCENE_CHANGED') return `scene → ${d.raw}`;
   if (name === 'MODE_CHANGED') return `mode → ${d.raw}`;
   if (name === 'GEP_INFO') return (d.raw || '').slice(0, 140);
