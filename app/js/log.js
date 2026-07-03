@@ -133,7 +133,8 @@ function render(entry) {
 
 function summarize(name, d) {
   if (!d) return '';
-  if (name === 'HELPER_STARTED') return `${d.game||''} v${d.version||'?'} · ${d.eventCount||(d.events||[]).length} events (${d.eventsHash||''})`;
+  if (name === 'HELPER_STARTED')
+    return `🚀 agent online · v${d.version||'?'} · game: ${d.game||'?'} · ${d.eventCount||(d.events||[]).length} events`;
   if (name.startsWith('GAME_SERVER') || name.startsWith('SERVICE')) {
     const geo = [d.city, d.countryIso].filter(Boolean).join(', ');
     const vpn = d.isLikelyVPN ? `⚠VPN?(${d.vpnReason})` : '';
