@@ -21,7 +21,7 @@ namespace WarzoneHelper.Game
         public IStatusParser CreateStatusParser(HelperConfig cfg) =>
             new WarzoneStatusParser(cfg?.StatusGameTitles);
 
-        public IEnumerable<EventDoc> Events => WarzoneEvents.Catalog;
+        public IEnumerable<EventDoc> Events => EventDef.DocsFrom(typeof(WarzoneEvents));
 
         public string PerfStripWhitelist
         {

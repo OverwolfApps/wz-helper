@@ -46,7 +46,7 @@ namespace GameHelper.Core.Monitors
         private readonly string _cacheFileRaw;
         private readonly string _rootProp;
         private readonly double _fuzzy;
-        private readonly string _evJoined, _evChanged, _evLeft;
+        private readonly EventDef _evJoined, _evChanged, _evLeft;
         private string _cachePath;
         private Timer _sweeper, _saver;
 
@@ -54,9 +54,7 @@ namespace GameHelper.Core.Monitors
 
         protected EntityRoster(EventBus bus, string cacheFile, string rootProperty,
             double fuzzyThreshold, int confidenceEstablish, int retainSeconds,
-            string joinedEvent = EventNames.PlayerJoined,
-            string changedEvent = EventNames.PlayerChanged,
-            string leftEvent = EventNames.PlayerLeft)
+            EventDef joinedEvent, EventDef changedEvent, EventDef leftEvent)
         {
             Bus = bus;
             _cacheFileRaw = cacheFile;
@@ -152,8 +150,8 @@ namespace GameHelper.Core.Monitors
 
         protected bool MarkConfirmed(T e) { e.Confirmed = true; return true; }
 
-        protected void EmitEntity(string eventName, T e) =>
-            Bus.Publish(eventName, EventSource.ScreenCv, x => { foreach (var kv in e.ToDict()) x.With(kv.Key, kv.Value); });
+        protected void EmitEntity(EventDef def, T e) =>
+            def.Emit(Bus, x => { foreach (var kv in e.ToDict()) x.With(kv.Key, kv.Value); });
 
         protected void EmitJoined(T e) => EmitEntity(_evJoined, e);
         protected void EmitChanged(T e) => EmitEntity(_evChanged, e);

@@ -55,6 +55,7 @@ namespace GameHelper.Core.Events
     /// <summary>Where an event was derived from, so consumers can weigh reliability.</summary>
     public static class EventSource
     {
+        public const string Core = "core";
         public const string Network = "network";
         public const string FileWatch = "filewatch";
         public const string StatusApi = "statusapi";

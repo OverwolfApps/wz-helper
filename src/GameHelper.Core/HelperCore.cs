@@ -46,7 +46,7 @@ namespace GameHelper.Core
             // Self-describing event catalog (Core + game) so consumers discover events/fields at
             // runtime and can detect schema changes via eventsHash.
             var catalog = EventCatalog.Core.Concat(_profile.Events ?? System.Linq.Enumerable.Empty<EventDoc>()).ToList();
-            _bus.Publish(EventNames.HelperStarted, "core", e => e
+            CoreEvents.HelperStarted.Emit(_bus, e => e
                 .With("version", "1.0.0").With("game", _profile.Name)
                 .With("events", catalog)
                 .With("eventsHash", EventCatalog.Hash(catalog))
@@ -187,7 +187,7 @@ namespace GameHelper.Core
             _monitors.Clear();
             _geo?.Dispose(); _geo = null;
             _pushedSource = null;
-            _bus.Publish(EventNames.HelperStopped, "core");
+            CoreEvents.HelperStopped.Emit(_bus);
         }
 
         public void Dispose() => Stop();

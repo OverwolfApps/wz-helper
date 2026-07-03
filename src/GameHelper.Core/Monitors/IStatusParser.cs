@@ -28,7 +28,7 @@ namespace GameHelper.Core.Monitors
         {
             if (responseBody == null || responseBody == _last) return;
             _last = responseBody;
-            bus.Publish(EventNames.StatusResponse, EventSource.StatusApi, e => e.With("body", responseBody));
+            CoreEvents.StatusResponse.Emit(bus, e => e.With("body", responseBody));
         }
     }
 }

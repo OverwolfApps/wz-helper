@@ -78,7 +78,7 @@ namespace WarzoneHelper.Game
         {
             if (count == _lastCount) return;
             _lastCount = count;
-            bus.Publish(EventNames.GameStatusChanged, EventSource.StatusApi, e => e
+            WarzoneEvents.GameStatusChanged.Emit(bus, e => e
                 .With("change", count == 0 ? "all_ok" : "summary")
                 .With("activeIssues", count)
                 .With("ok", count == 0));
@@ -96,13 +96,14 @@ namespace WarzoneHelper.Game
         private static void Emit(EventBus bus, string key, string change, object prev, JObject cur)
         {
             var parts = key.Split('|');
-            var evt = new HelperEvent(EventNames.GameStatusChanged, EventSource.StatusApi)
-                .With("gameTitle", parts.Length > 0 ? parts[0] : "")
-                .With("platform", parts.Length > 1 ? parts[1] : "")
-                .With("change", change);
-            if (cur != null) evt.With("status", cur.ToObject<Dictionary<string, object>>());
-            if (prev != null) evt.With("previous", prev.ToString());
-            bus.Publish(evt);
+            WarzoneEvents.GameStatusChanged.Emit(bus, evt =>
+            {
+                evt.With("gameTitle", parts.Length > 0 ? parts[0] : "")
+                    .With("platform", parts.Length > 1 ? parts[1] : "")
+                    .With("change", change);
+                if (cur != null) evt.With("status", cur.ToObject<Dictionary<string, object>>());
+                if (prev != null) evt.With("previous", prev.ToString());
+            });
         }
     }
 }

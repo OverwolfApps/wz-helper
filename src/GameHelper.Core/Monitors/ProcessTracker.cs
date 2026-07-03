@@ -61,8 +61,8 @@ namespace GameHelper.Core.Monitors
                 if (running != _wasRunning)
                 {
                     _wasRunning = running;
-                    _bus.Publish(running ? EventNames.GameProcessStarted : EventNames.GameProcessStopped,
-                        EventSource.Process, e => e.With("pids", found.ToArray()));
+                    (running ? CoreEvents.GameProcessStarted : CoreEvents.GameProcessStopped)
+                        .Emit(_bus, e => e.With("pids", found.ToArray()));
                     try { RunningChanged?.Invoke(running); } catch { }
                 }
             }

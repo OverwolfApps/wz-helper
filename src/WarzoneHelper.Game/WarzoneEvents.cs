@@ -1,13 +1,15 @@
-using System.Collections.Generic;
 using GameHelper.Core.Events;
 
 namespace WarzoneHelper.Game
 {
-    /// <summary>Self-describing catalog of the Warzone-specific events (CV, roster, status), merged
-    /// with GameHelper.Core's catalog and shipped in HELPER_STARTED.</summary>
-    internal static class WarzoneEvents
+    /// <summary>
+    /// The Warzone-specific events (CV, roster, status), declared once as <see cref="EventDef"/>s.
+    /// Monitors call <c>X.Emit(bus, ...)</c>; the HELPER_STARTED catalog reflects these, so emit and
+    /// docs never drift. Names reuse the Core <see cref="EventNames"/> constants.
+    /// </summary>
+    public static class WarzoneEvents
     {
-        private static EventFieldDoc F(string n, string t, string d) => new EventFieldDoc(n, t, d);
+        private static EventFieldDoc F(string n, string t, string d) => EventDef.Field(n, t, d);
 
         private static EventFieldDoc[] Player() => new[]
         {
@@ -27,66 +29,87 @@ namespace WarzoneHelper.Game
             F("sources", "string[]", "which detectors contributed (party/chat/killfeed/...)"),
         };
 
-        public static IReadOnlyList<EventDoc> Catalog { get; } = new List<EventDoc>
-        {
-            new EventDoc("GAME_STATUS_CHANGED", "statusapi", "Activision status changed (summary or per game/platform issue).",
-                F("change", "string", "all_ok | summary | issue_started | issue_updated | issue_resolved"),
-                F("ok", "bool", "true when there are no active issues (summary)"),
-                F("activeIssues", "int", "active issue count (summary)"),
-                F("gameTitle", "string", "affected title (per-issue)"),
-                F("platform", "string", "affected platform (per-issue)"),
-                F("status", "object", "current status fields (per-issue)"),
-                F("previous", "string", "previous signature (per-issue)")),
+        public static readonly EventDef GameStatusChanged = new EventDef(
+            EventNames.GameStatusChanged, EventSource.StatusApi, "Activision status changed (summary or per game/platform issue).",
+            F("change", "string", "all_ok | summary | issue_started | issue_updated | issue_resolved"),
+            F("ok", "bool", "true when there are no active issues (summary)"),
+            F("activeIssues", "int", "active issue count (summary)"),
+            F("gameTitle", "string", "affected title (per-issue)"),
+            F("platform", "string", "affected platform (per-issue)"),
+            F("status", "object", "current status fields (per-issue)"),
+            F("previous", "string", "previous signature (per-issue)"));
 
-            new EventDoc("HEALTH_CHANGED", "screen-cv", "Health bar fill changed.",
-                F("health", "number", "0..1 fill fraction"),
-                F("previous", "number", "prior fraction")),
-            new EventDoc("PLAYER_DEAD", "screen-cv", "Local player death detected (red banner).",
-                F("health", "number", "health at death")),
-            new EventDoc("DEPLOYED", "screen-cv", "Deploy/parachute prompt detected."),
-            new EventDoc("LOBBY_ID_CHANGED", "screen-cv", "The ~19-digit lobby/session id changed (confidence-gated).",
-                F("lobbyId", "string", "new lobby id"),
-                F("previous", "string", "prior lobby id")),
-            new EventDoc("CHAT_MESSAGE", "screen-cv", "An in-game chat message (confidence-gated).",
-                F("channel", "string", "MATCH/PARTY/SQUAD/ALL"),
-                F("name", "string", "sender name"),
-                F("text", "string", "message text")),
-            new EventDoc("PARTY_LIST_CHANGED", "screen-cv", "Your party/squad panel membership changed.",
-                F("members", "object[]", "[{name, level, group}]"),
-                F("count", "int", "member count"),
-                F("selfIndex", "int", "index of you, or -1")),
-            new EventDoc("MATCH_LIST_CHANGED", "screen-cv", "The full lobby/match player list changed.",
-                F("members", "object[]", "[{name, level, group}]"),
-                F("count", "int", "member count"),
-                F("selfIndex", "int", "index of you, or -1")),
-            new EventDoc("SPECTATING_PLAYER", "screen-cv", "Spectating panel while dead.",
-                F("name", "string", "spectated player"),
-                F("id", "string", "#id suffix")),
-            new EventDoc("PERF_STATS", "screen-cv", "Perf/telemetry overlay values (throttled ~1/3s).",
-                F("fps", "int", "frames per second"),
-                F("latencyMs", "int", "network latency"),
-                F("gameLatencyMs", "int", "ping to the match server"),
-                F("packetLossPct", "int", "packet loss %"),
-                F("gpuTemp", "int", "GPU temperature °C"),
-                F("vramPct", "int", "VRAM usage %"),
-                F("clock", "string", "wall clock HH:MM")),
-            new EventDoc("PARTY_CODE_CHANGED", "screen-cv", "The invite/party code changed (cached, not per-match).",
-                F("code", "string", "party code, e.g. LLJGJ")),
-            new EventDoc("PLAYER_INSPECTED", "screen-cv", "Inspect-player panel details.",
-                F("activisionId", "string", "Activision id"),
-                F("level", "int", "level"),
-                F("rank", "string", "ranked tier"),
-                F("platform", "string", "platform"),
-                F("input", "string", "input device")),
-            new EventDoc("KILLFEED_ENTRY", "screen-cv", "A killfeed or event-log line. Kill: {killer, victim}. Event-log: {player, event}.",
-                F("killer", "string", "killer name (kill line)"),
-                F("victim", "string", "victim name (kill line)"),
-                F("player", "string", "subject (event-log line)"),
-                F("event", "string", "disconnected | banned | ... (event-log line)")),
+        public static readonly EventDef HealthChanged = new EventDef(
+            EventNames.HealthChanged, EventSource.ScreenCv, "Health bar fill changed.",
+            F("health", "number", "0..1 fill fraction"), F("previous", "number", "prior fraction"));
 
-            new EventDoc("PLAYER_JOINED", "screen-cv", "A player entered the active roster (confidence-confirmed).", Player()),
-            new EventDoc("PLAYER_CHANGED", "screen-cv", "A tracked player attribute changed.", Player()),
-            new EventDoc("PLAYER_LEFT", "screen-cv", "A player dropped from the active roster (cache kept).", Player()),
-        };
+        public static readonly EventDef PlayerDead = new EventDef(
+            EventNames.PlayerDead, EventSource.ScreenCv, "Local player death detected (red banner).",
+            F("health", "number", "health at death"));
+
+        public static readonly EventDef Deployed = new EventDef(
+            EventNames.Deployed, EventSource.ScreenCv, "Deploy/parachute prompt detected.");
+
+        public static readonly EventDef LobbyIdChanged = new EventDef(
+            EventNames.LobbyIdChanged, EventSource.ScreenCv, "The ~19-digit lobby/session id changed (confidence-gated).",
+            F("lobbyId", "string", "new lobby id"), F("previous", "string", "prior lobby id"));
+
+        public static readonly EventDef ChatMessage = new EventDef(
+            EventNames.ChatMessage, EventSource.ScreenCv, "An in-game chat message (confidence-gated).",
+            F("channel", "string", "MATCH/PARTY/SQUAD/ALL"),
+            F("name", "string", "sender name"),
+            F("text", "string", "message text"));
+
+        public static readonly EventDef PartyListChanged = new EventDef(
+            EventNames.PartyListChanged, EventSource.ScreenCv, "Your party/squad panel membership changed.",
+            F("members", "object[]", "[{name, level, group}]"),
+            F("count", "int", "member count"),
+            F("selfIndex", "int", "index of you, or -1"));
+
+        public static readonly EventDef MatchListChanged = new EventDef(
+            EventNames.MatchListChanged, EventSource.ScreenCv, "The full lobby/match player list changed.",
+            F("members", "object[]", "[{name, level, group}]"),
+            F("count", "int", "member count"),
+            F("selfIndex", "int", "index of you, or -1"));
+
+        public static readonly EventDef SpectatingPlayer = new EventDef(
+            EventNames.SpectatingPlayer, EventSource.ScreenCv, "Spectating panel while dead.",
+            F("name", "string", "spectated player"), F("id", "string", "#id suffix"));
+
+        public static readonly EventDef PerfStats = new EventDef(
+            EventNames.PerfStats, EventSource.ScreenCv, "Perf/telemetry overlay values (throttled ~1/3s).",
+            F("fps", "int", "frames per second"),
+            F("latencyMs", "int", "network latency"),
+            F("gameLatencyMs", "int", "ping to the match server"),
+            F("packetLossPct", "int", "packet loss %"),
+            F("gpuTemp", "int", "GPU temperature °C"),
+            F("vramPct", "int", "VRAM usage %"),
+            F("clock", "string", "wall clock HH:MM"));
+
+        public static readonly EventDef PartyCodeChanged = new EventDef(
+            EventNames.PartyCodeChanged, EventSource.ScreenCv, "The invite/party code changed (cached, not per-match).",
+            F("code", "string", "party code, e.g. LLJGJ"));
+
+        public static readonly EventDef PlayerInspected = new EventDef(
+            EventNames.PlayerInspected, EventSource.ScreenCv, "Inspect-player panel details.",
+            F("activisionId", "string", "Activision id"),
+            F("level", "int", "level"),
+            F("rank", "string", "ranked tier"),
+            F("platform", "string", "platform"),
+            F("input", "string", "input device"));
+
+        public static readonly EventDef KillfeedEntry = new EventDef(
+            EventNames.KillfeedEntry, EventSource.ScreenCv, "A killfeed or event-log line. Kill: {killer, victim}. Event-log: {player, event}.",
+            F("killer", "string", "killer name (kill line)"),
+            F("victim", "string", "victim name (kill line)"),
+            F("player", "string", "subject (event-log line)"),
+            F("event", "string", "disconnected | banned | ... (event-log line)"));
+
+        public static readonly EventDef PlayerJoined = new EventDef(
+            EventNames.PlayerJoined, EventSource.ScreenCv, "A player entered the active roster (confidence-confirmed).", Player());
+        public static readonly EventDef PlayerChanged = new EventDef(
+            EventNames.PlayerChanged, EventSource.ScreenCv, "A tracked player attribute changed.", Player());
+        public static readonly EventDef PlayerLeft = new EventDef(
+            EventNames.PlayerLeft, EventSource.ScreenCv, "A player dropped from the active roster (cache kept).", Player());
     }
 }

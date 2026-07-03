@@ -97,7 +97,7 @@ namespace WarzoneHelper.Game
                 {
                     var prev = _lastHealth;
                     _lastHealth = h;
-                    _bus.Publish(EventNames.HealthChanged, EventSource.ScreenCv, e => e
+                    WarzoneEvents.HealthChanged.Emit(_bus, e => e
                         .With("health", h).With("previous", prev));
                 }
             }
@@ -106,14 +106,14 @@ namespace WarzoneHelper.Game
             if (inMatch && s.DeathBannerVisible == true) _deadStreak++; else _deadStreak = 0;
             bool dead = _deadStreak >= 2;
             if (dead && !_lastDead)
-                _bus.Publish(EventNames.PlayerDead, EventSource.ScreenCv, e => e.With("health", _lastHealth));
+                WarzoneEvents.PlayerDead.Emit(_bus, e => e.With("health", _lastHealth));
             _lastDead = dead;
 
             // Deploy prompt
             if (s.DeployBannerVisible == true) _deployStreak++; else _deployStreak = 0;
             bool deploy = _deployStreak >= 2;
             if (deploy && !_lastDeploy)
-                _bus.Publish(EventNames.Deployed, EventSource.ScreenCv);
+                WarzoneEvents.Deployed.Emit(_bus);
             _lastDeploy = deploy;
 
             // Lobby ID — OCR flips a digit between frames (e.g. 59.. vs 55..), so only accept a value
@@ -122,7 +122,7 @@ namespace WarzoneHelper.Game
             {
                 var prev = _lobby.HasValue ? _lobby.Value : null;
                 if (_lobby.Observe(s.LobbyId))
-                    _bus.Publish(EventNames.LobbyIdChanged, EventSource.ScreenCv, e => e
+                    WarzoneEvents.LobbyIdChanged.Emit(_bus, e => e
                         .With("lobbyId", s.LobbyId).With("previous", prev));
             }
 
@@ -135,7 +135,7 @@ namespace WarzoneHelper.Game
                     if (_recentChat.Contains(msg.Key)) continue;   // already emitted this message
                     if (!_chatVotes.Cast(msg.Key, now)) continue;  // not confident yet
                     _recentChat.Add(msg.Key);
-                    _bus.Publish(EventNames.ChatMessage, EventSource.ScreenCv, e2 => e2
+                    WarzoneEvents.ChatMessage.Emit(_bus, e2 => e2
                         .With("channel", msg.Channel).With("name", msg.Name).With("text", msg.Text));
                 }
                 _chatVotes.Prune(now);
@@ -154,10 +154,10 @@ namespace WarzoneHelper.Game
                     var payload = members.Select(m => new Dictionary<string, object> {
                         { "name", m.Name }, { "level", m.Level }, { "group", m.Group } }).ToArray();
                     // A large top-right list is the full match/lobby roster, not your party.
-                    var name = s.PartyIsMatchList ? EventNames.MatchListChanged : EventNames.PartyListChanged;
+                    var def = s.PartyIsMatchList ? WarzoneEvents.MatchListChanged : WarzoneEvents.PartyListChanged;
                     // Self position: topmost in the lobby party panel, bottommost in the in-game squad.
                     int selfIndex = s.PartyIsMatchList ? -1 : (inMatch ? payload.Length - 1 : 0);
-                    _bus.Publish(name, EventSource.ScreenCv, e => e
+                    def.Emit(_bus, e => e
                         .With("members", payload).With("count", payload.Length).With("selfIndex", selfIndex));
                 }
             }
@@ -166,7 +166,7 @@ namespace WarzoneHelper.Game
             if (!string.IsNullOrEmpty(s.PartyCode) && s.PartyCode != _lastPartyCode)
             {
                 _lastPartyCode = s.PartyCode;
-                _bus.Publish(EventNames.PartyCodeChanged, EventSource.ScreenCv, e => e.With("code", s.PartyCode));
+                WarzoneEvents.PartyCodeChanged.Emit(_bus, e => e.With("code", s.PartyCode));
             }
 
             // Inspect-player: emit when a new player's details are read.
@@ -174,7 +174,7 @@ namespace WarzoneHelper.Game
                 && aid.ToString() != _lastInspectId)
             {
                 _lastInspectId = aid.ToString();
-                _bus.Publish(EventNames.PlayerInspected, EventSource.ScreenCv, e =>
+                WarzoneEvents.PlayerInspected.Emit(_bus, e =>
                 { foreach (var kv in s.Inspect) e.With(kv.Key, kv.Value); });
             }
 
@@ -182,7 +182,7 @@ namespace WarzoneHelper.Game
             if (s.Perf != null && (DateTime.UtcNow - _lastPerfEmit).TotalSeconds >= 3)
             {
                 _lastPerfEmit = DateTime.UtcNow;
-                _bus.Publish(EventNames.PerfStats, EventSource.ScreenCv, e =>
+                WarzoneEvents.PerfStats.Emit(_bus, e =>
                 {
                     foreach (var kv in s.Perf) e.With(kv.Key, kv.Value);
                 });
@@ -196,10 +196,10 @@ namespace WarzoneHelper.Game
                     if (_recentChat.Contains(item.Key)) continue;
                     _recentChat.Add(item.Key);
                     if (item.Type == "kill")
-                        _bus.Publish(EventNames.KillfeedEntry, EventSource.ScreenCv, e => e
+                        WarzoneEvents.KillfeedEntry.Emit(_bus, e => e
                             .With("killer", item.Killer).With("victim", item.Victim));
                     else
-                        _bus.Publish(EventNames.KillfeedEntry, EventSource.ScreenCv, e => e
+                        WarzoneEvents.KillfeedEntry.Emit(_bus, e => e
                             .With("player", item.Player).With("event", item.Event));
                 }
             }
@@ -211,7 +211,7 @@ namespace WarzoneHelper.Game
                 if (specKey != _lastSpectateKey)
                 {
                     _lastSpectateKey = specKey;
-                    _bus.Publish(EventNames.SpectatingPlayer, EventSource.ScreenCv, e => e
+                    WarzoneEvents.SpectatingPlayer.Emit(_bus, e => e
                         .With("name", s.SpectatingName).With("id", s.SpectatingId));
                 }
             }

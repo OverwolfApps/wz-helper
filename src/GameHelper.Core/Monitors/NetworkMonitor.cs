@@ -158,9 +158,9 @@ namespace GameHelper.Core.Monitors
             if (connected && _cfg.ResolvePing && (t.IsGameServer || t.Proto == "UDP"))
                 ping = Pinger.PingMs(t.Ip, _cfg.PingTimeoutMs);
 
-            string name = connected
-                ? (t.IsGameServer ? EventNames.GameServerConnected : EventNames.ServiceConnected)
-                : (t.IsGameServer ? EventNames.GameServerDisconnected : EventNames.ServiceDisconnected);
+            var def = connected
+                ? (t.IsGameServer ? CoreEvents.GameServerConnected : CoreEvents.ServiceConnected)
+                : (t.IsGameServer ? CoreEvents.GameServerDisconnected : CoreEvents.ServiceDisconnected);
 
             // Distance from home + VPN/proxy heuristic (only meaningful for game servers).
             double? distanceKm = null;
@@ -173,26 +173,25 @@ namespace GameHelper.Core.Monitors
             bool isLikelyVpn = t.IsGameServer && (highPing || tooFar);
 
             long totalBytes = t.BytesSent + t.BytesRecv;
-            var evt = new HelperEvent(name, EventSource.Network)
-                .With("ip", t.Ip)
-                .With("port", t.Port)
-                .With("protocol", t.Proto)
-                .With("isGameServer", t.IsGameServer)
-                .With("inMatch", _match != null && _match.InMatch)
-                .With("pingMs", ping)
-                .With("distanceKm", distanceKm)
-                .With("isLikelyVPN", isLikelyVpn)
-                .With("vpnReason", isLikelyVpn ? (highPing && tooFar ? "ping+distance" : highPing ? "ping" : "distance") : null)
-                .With("bytes", totalBytes)
-                .With("bytesSent", t.BytesSent)
-                .With("bytesRecv", t.BytesRecv)
-                .With("bytesPerSec", (long)(totalBytes / UdpWindowSeconds))
-                .With("secondsTracked", Math.Round((DateTime.UtcNow - t.FirstSeenUtc).TotalSeconds, 1));
-
-            if (geo != null)
-                foreach (var kv in geo.ToDict()) evt.With(kv.Key, kv.Value);
-
-            _bus.Publish(evt);
+            def.Emit(_bus, evt =>
+            {
+                evt.With("ip", t.Ip)
+                    .With("port", t.Port)
+                    .With("protocol", t.Proto)
+                    .With("isGameServer", t.IsGameServer)
+                    .With("inMatch", _match != null && _match.InMatch)
+                    .With("pingMs", ping)
+                    .With("distanceKm", distanceKm)
+                    .With("isLikelyVPN", isLikelyVpn)
+                    .With("vpnReason", isLikelyVpn ? (highPing && tooFar ? "ping+distance" : highPing ? "ping" : "distance") : null)
+                    .With("bytes", totalBytes)
+                    .With("bytesSent", t.BytesSent)
+                    .With("bytesRecv", t.BytesRecv)
+                    .With("bytesPerSec", (long)(totalBytes / UdpWindowSeconds))
+                    .With("secondsTracked", Math.Round((DateTime.UtcNow - t.FirstSeenUtc).TotalSeconds, 1));
+                if (geo != null)
+                    foreach (var kv in geo.ToDict()) evt.With(kv.Key, kv.Value);
+            });
         }
 
         private void Sweep(HashSet<string> current)

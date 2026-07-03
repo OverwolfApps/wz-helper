@@ -96,7 +96,7 @@ namespace GameHelper.Core.Monitors
             try
             {
                 if (Directory.Exists(e.FullPath) || !Matches(e.FullPath)) return;
-                _bus.Publish(EventNames.LogFileAdded, EventSource.FileWatch, x => x.With("path", e.FullPath));
+                CoreEvents.LogFileAdded.Emit(_bus, x => x.With("path", e.FullPath));
                 _offsets[e.FullPath] = 0;          // tail this new file from the start
                 EmitAppendedLines(e.FullPath);
             }
@@ -108,7 +108,7 @@ namespace GameHelper.Core.Monitors
             try
             {
                 if (!Matches(e.FullPath)) return;
-                _bus.Publish(EventNames.LogFileRemoved, EventSource.FileWatch, x => x.With("path", e.FullPath));
+                CoreEvents.LogFileRemoved.Emit(_bus, x => x.With("path", e.FullPath));
                 _offsets.TryRemove(e.FullPath, out _);
                 _lastFired.TryRemove(e.FullPath, out _);
             }
@@ -121,13 +121,13 @@ namespace GameHelper.Core.Monitors
             {
                 if (Matches(e.OldFullPath))
                 {
-                    _bus.Publish(EventNames.LogFileRemoved, EventSource.FileWatch, x => x.With("path", e.OldFullPath));
+                    CoreEvents.LogFileRemoved.Emit(_bus, x => x.With("path", e.OldFullPath));
                     _offsets.TryRemove(e.OldFullPath, out _);
                     _lastFired.TryRemove(e.OldFullPath, out _);
                 }
                 if (!Directory.Exists(e.FullPath) && Matches(e.FullPath))
                 {
-                    _bus.Publish(EventNames.LogFileAdded, EventSource.FileWatch, x => x.With("path", e.FullPath));
+                    CoreEvents.LogFileAdded.Emit(_bus, x => x.With("path", e.FullPath));
                     _offsets[e.FullPath] = 0;
                     EmitAppendedLines(e.FullPath);
                 }
@@ -151,21 +151,22 @@ namespace GameHelper.Core.Monitors
         {
             foreach (var line in TailNewLines(path))
             {
-                var evt = new HelperEvent(EventNames.LogLineAdded, EventSource.FileWatch)
-                    .With("path", path).With("line", line);
-                foreach (var re in _linePatterns)
+                CoreEvents.LogLineAdded.Emit(_bus, evt =>
                 {
-                    var m = re.Match(line);
-                    if (!m.Success) continue;
-                    foreach (var g in re.GetGroupNames())
-                        if (!int.TryParse(g, out _))          // named groups only (skip numeric indices)
-                        {
-                            var grp = m.Groups[g];
-                            if (grp.Success) evt.With(g, grp.Value);
-                        }
-                    break;                                    // first matching pattern wins
-                }
-                _bus.Publish(evt);
+                    evt.With("path", path).With("line", line);
+                    foreach (var re in _linePatterns)
+                    {
+                        var m = re.Match(line);
+                        if (!m.Success) continue;
+                        foreach (var g in re.GetGroupNames())
+                            if (!int.TryParse(g, out _))      // named groups only (skip numeric indices)
+                            {
+                                var grp = m.Groups[g];
+                                if (grp.Success) evt.With(g, grp.Value);
+                            }
+                        break;                                // first matching pattern wins
+                    }
+                });
             }
         }
 

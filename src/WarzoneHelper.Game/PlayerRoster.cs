@@ -60,7 +60,8 @@ namespace WarzoneHelper.Game
 
         public PlayerRoster(WarzoneConfig cfg, EventBus bus)
             : base(bus, cfg.PlayerCacheFile, "players", cfg.PlayerFuzzyThreshold,
-                   cfg.ConfidenceEstablish, cfg.PlayerRetainSec)
+                   cfg.ConfidenceEstablish, cfg.PlayerRetainSec,
+                   WarzoneEvents.PlayerJoined, WarzoneEvents.PlayerChanged, WarzoneEvents.PlayerLeft)
         {
             _cfg = cfg;
         }
