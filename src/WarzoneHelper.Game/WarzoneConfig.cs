@@ -34,7 +34,10 @@ namespace WarzoneHelper.Game
             // (>=Min B/s) is classified as the game server that flips the in-match state — the lower
             // one shows as a SERVICE. Tune the split if a real match ever fails to register.
             GameServerTrafficBytesPerSec = 3000;  // announce floor (below this = ignored idle UDP)
-            GameServerMinBytesPerSec = 13000;     // game-server vs service split (only >= this flips in-match)
+            GameServerMinBytesPerSec = 6000;      // game-server vs service split (>= this = game server).
+                                                  // Lowered so the real match server is caught every
+                                                  // match; lower ones still show as SERVICE. The set-
+                                                  // based match state absorbs the lobby+game double.
 
             // Activision status API + CoD title filter
             StatusApiUrl = "https://prod-psapi.infra-ext.activision.com/open/api/apexrest/oshp/landingpage";

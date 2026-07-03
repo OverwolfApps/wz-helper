@@ -2,7 +2,8 @@
 // to content, hides fields that have no value yet.
 let selfWindowId = null;
 overwolf.windows.getCurrentWindow((r) => { if (r.status === 'success') selfWindowId = r.window.id; });
-document.getElementById('close').onclick = () => selfWindowId && overwolf.windows.hide(selfWindowId, () => {});
+const _close = document.getElementById('close');
+if (_close) _close.onclick = () => selfWindowId && overwolf.windows.hide(selfWindowId, () => {});
 
 const els = {
   game: document.getElementById('s-game'), match: document.getElementById('s-match'),
@@ -12,6 +13,15 @@ const els = {
   lobby: document.getElementById('s-lobby'), party: document.getElementById('s-party'),
   status: document.getElementById('s-status'),
 };
+
+// Register the live-event listener FIRST — before any init that could throw — so the HUD always
+// receives updates even if a later step fails. (The callback runs async, after sync init finishes,
+// so the helpers/consts it uses are ready by then.)
+overwolf.windows.onMessageReceived.addListener((msg) => {
+  if (msg.id === 'helper-event') update(msg.content.name, msg.content.data);
+  else if (msg.id === 'agent-status' && !msg.content.connected) setField(els.game, 'agent offline');
+  else if (msg.id === 'set-opacity') { applyOpacity(msg.content.v); localStorage.setItem('wzh_opacity', msg.content.v); }
+});
 
 // Player/squad counts. In a match the roster (PLAYER_* deltas, incl. enemies seen) is richest;
 // out of match it's empty, so fall back to the party/match list counts — which is what the log
@@ -67,11 +77,7 @@ function flagImg(iso) {
   return `<img class="flag" src="https://flagcdn.com/20x15/${iso.toLowerCase()}.png" alt="${iso}" onerror="this.replaceWith('${iso} ')">`;
 }
 
-overwolf.windows.onMessageReceived.addListener((msg) => {
-  if (msg.id === 'helper-event') update(msg.content.name, msg.content.data);
-  else if (msg.id === 'agent-status' && !msg.content.connected) setField(els.game, 'agent offline');
-  else if (msg.id === 'set-opacity') { applyOpacity(msg.content.v); localStorage.setItem('wzh_opacity', msg.content.v); }
-});
+// Backfill current state from the background ring buffer (runs after all consts are defined).
 try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.events) bg.wzh.events.forEach(e => update(e.name, e.data)); } catch {}
 
 function update(name, d) {

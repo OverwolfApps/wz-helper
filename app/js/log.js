@@ -118,6 +118,14 @@ function flagImg(iso) {
   return `<img class="flag" src="https://flagcdn.com/20x15/${iso.toLowerCase()}.png" alt="${iso}" onerror="this.replaceWith('${iso} ')">`;
 }
 
+// Endpoint URL scheme: UDP stays udp; TCP becomes https/http on 443/80, else tcp.
+function endpointScheme(d) {
+  const p = (d.protocol || '').toUpperCase();
+  if (p === 'UDP') return 'udp';
+  if (p === 'TCP') return d.port === 443 ? 'https' : d.port === 80 ? 'http' : 'tcp';
+  return (d.protocol || '?').toLowerCase();
+}
+
 function render(entry) {
   const { name, data, at } = entry;
   if (name === 'HELPER_STARTED' && data && Array.isArray(data.events)) applyCatalog(data);
@@ -137,10 +145,15 @@ function summarize(name, d) {
   if (name === 'HELPER_STARTED')
     return `🚀 agent online · v${d.version||'?'} · game: ${d.game||'?'} · ${d.eventCount||(d.events||[]).length} events`;
   if (name.startsWith('GAME_SERVER') || name.startsWith('SERVICE')) {
-    const geo = [d.city, d.countryIso].filter(Boolean).join(', ');
-    const vpn = d.isLikelyVPN ? `⚠VPN?(${d.vpnReason})` : '';
-    const ping = d.pingMs >= 0 ? `${d.pingMs}ms` : 'ping n/a';
-    return `${flagImg(d.countryIso)}${d.ip}:${d.port} ${d.protocol} ${geo} ${ping} ${d.bytesPerSec?d.bytesPerSec+'B/s':''} ${d.asnOrg||''} ${vpn}`;
+    // flag scheme://ip:port | loc | 10ms | 50kb/s | ORG/ASN
+    return [
+      `${flagImg(d.countryIso)}${endpointScheme(d)}://${d.ip}:${d.port}`,
+      [d.city, d.countryIso].filter(Boolean).join(', '),
+      d.pingMs >= 0 ? `${d.pingMs}ms` : 'n/a',
+      d.bytesPerSec != null ? `${Math.round(d.bytesPerSec / 1000)}kb/s` : '',
+      [d.asnOrg, d.asn != null ? 'AS' + d.asn : ''].filter(Boolean).join('/'),
+      d.isLikelyVPN ? `⚠VPN?(${d.vpnReason})` : '',
+    ].filter(Boolean).join(' | ');
   }
   if (name === 'CHAT_MESSAGE') return `💬 [${d.channel}] ${d.name}: ${d.text}`;
   if (name === 'KILLFEED_ENTRY') return d.event ? `${d.player} ${d.event}` : `${d.killer} ☠ ${d.victim}`;
