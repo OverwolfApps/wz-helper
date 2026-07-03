@@ -1,47 +1,44 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Threading;
 using Newtonsoft.Json;
-using GameHelper.Core.Config;
 using GameHelper.Core.Events;
-
 using GameHelper.Core.Monitors;
 using GameHelper.Core.Text;
-using GameHelper.Core.Util;
+
 namespace WarzoneHelper.Game
 {
     /// <summary>
-    /// Persistent, multi-session player cache. One record per real player accumulates every field we
-    /// can ever OCR (name, level, rank, platform, input, Activision id, team, status, banned, ...),
-    /// is matched fuzzily against the existing cache so OCR-variant / made-up names link to the right
-    /// player instead of spawning duplicates, persists to a minified players.json between sessions,
-    /// and updates in memory on the fly. PLAYER_JOINED/CHANGED/LEFT track the current match roster.
+    /// Warzone player roster: the game-specific layer over the generic <see cref="EntityRoster{T}"/>.
+    /// Adds the Player entity (team / rank / platform / banned / ...), consumes the CV/network events
+    /// (party & match lists, chat, killfeed, inspect, game-server connect/disconnect), applies team
+    /// ranking + sticky "self" detection, and tracks the match session. Persistence, fuzzy matching,
+    /// the confidence gate, active-set sweeping and PLAYER_* deltas all come from the base.
     /// </summary>
-    public sealed class PlayerRoster : IMonitor
+    public sealed class PlayerRoster : EntityRoster<PlayerRoster.Player>
     {
-        public sealed class Player
+        public sealed class Player : IRosterEntity
         {
-            public string Id;
-            public string Name;
-            public string Key;               // normalized letters+digits
-            public int? Level;
-            public string Rank;
-            public string Platform;
-            public string Input;
-            public string ActivisionId;
-            public string Team = "unknown";  // self | squad | enemy | unknown
-            public string Status = "active"; // active | dead | disconnected
-            public bool Banned;
-            public string FirstSeen;
-            public string LastSeen;
-            public int Sightings;
-            public bool Confirmed;
-            public List<string> Sources = new List<string>();
-            [JsonIgnore] public bool InMatch;
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public string Key { get; set; }               // normalized letters+digits
+            public int? Level { get; set; }
+            public string Rank { get; set; }
+            public string Platform { get; set; }
+            public string Input { get; set; }
+            public string ActivisionId { get; set; }
+            public string Team { get; set; } = "unknown"; // self | squad | enemy | online | unknown
+            public string Status { get; set; } = "active"; // active | dead | disconnected
+            public bool Banned { get; set; }
+            public string FirstSeen { get; set; }
+            public string LastSeen { get; set; }
+            public int Sightings { get; set; }
+            public bool Confirmed { get; set; }
+            public List<string> Sources { get; set; } = new List<string>();
+            [JsonIgnore] public bool InMatch { get; set; }
+            [JsonIgnore] public string AltKey => ActivisionId;   // exact secondary key
 
-            public Dictionary<string, object> ToDict() => new Dictionary<string, object>
+            public IDictionary<string, object> ToDict() => new Dictionary<string, object>
             {
                 { "id", Id }, { "name", Name }, { "key", Key }, { "level", Level }, { "rank", Rank },
                 { "platform", Platform }, { "input", Input }, { "activisionId", ActivisionId },
@@ -50,106 +47,29 @@ namespace WarzoneHelper.Game
             };
         }
 
-        private sealed class CacheFile { public List<Player> players = new List<Player>(); }
-
         private readonly WarzoneConfig _cfg;
-        private readonly EventBus _bus;
-        private readonly object _lock = new object();
-        private readonly List<Player> _all = new List<Player>();
-        private readonly Dictionary<string, Player> _byKey = new Dictionary<string, Player>();
-        private readonly Dictionary<string, Player> _byActId = new Dictionary<string, Player>();
-        private Timer _sweeper, _saver;
-        private volatile bool _dirty;
-        private string _cachePath;
 
         // Match session (set of active game servers; a match uses >1 server on :44998).
         private readonly HashSet<string> _activeServers = new HashSet<string>();
         private bool _sessionOpen;
 
-        // Self stickiness (see previous logic).
+        // Sticky self.
         private string _selfKey; private int _selfBasis;
 
-        public string Name => "roster";
-        public PlayerRoster(WarzoneConfig cfg, EventBus bus) { _cfg = cfg; _bus = bus; }
+        public override string Name => "roster";
 
-        public void Start()
+        public PlayerRoster(WarzoneConfig cfg, EventBus bus)
+            : base(bus, cfg.PlayerCacheFile, "players", cfg.PlayerFuzzyThreshold,
+                   cfg.ConfidenceEstablish, cfg.PlayerRetainSec)
         {
-            _cachePath = HelperConfig.Expand(_cfg.PlayerCacheFile);
-            Load();
-            _bus.OnEvent += OnEvent;
-            _sweeper = new Timer(_ => Sweep(), null, 5000, 5000);
-            _saver = new Timer(_ => { if (_dirty) Save(); }, null, 15000, 15000);
+            _cfg = cfg;
         }
 
-        public void Stop()
-        {
-            _bus.OnEvent -= OnEvent;
-            _sweeper?.Dispose(); _saver?.Dispose();
-            if (_dirty) Save();
-        }
-        public void Dispose() => Stop();
-
-        // ---- persistence ----
-        private void Load()
-        {
-            var cf = JsonFile.Load<CacheFile>(_cachePath);
-            if (cf?.players != null)
-            {
-                foreach (var p in cf.players) Index(p);
-                _bus.Log($"[roster] loaded {_all.Count} cached players");
-            }
-        }
-
-        private void Save()
-        {
-            try
-            {
-                _dirty = false;
-                List<Player> snapshot;
-                lock (_lock) snapshot = _all.Where(p => p.Confirmed).ToList();
-                JsonFile.SaveMinified(_cachePath, new CacheFile { players = snapshot });
-            }
-            catch (Exception ex) { _bus.Log($"[roster] save error: {ex.Message}"); }
-        }
-
-        private void Index(Player p)
-        {
-            _all.Add(p);
-            if (!string.IsNullOrEmpty(p.Key)) _byKey[p.Key] = p;
-            if (!string.IsNullOrEmpty(p.ActivisionId)) _byActId[p.ActivisionId] = p;
-        }
-
-        // ---- name matching ----
-
-        /// <summary>Resolve a name (+ optional Activision id) to an existing cached player or a new one.</summary>
-        private Player Resolve(string rawName, string activisionId)
-        {
-            var key = TextOps.Norm(rawName);
-            if (key.Length < 2 && string.IsNullOrEmpty(activisionId)) return null;
-
-            if (!string.IsNullOrEmpty(activisionId) && _byActId.TryGetValue(activisionId, out var byId)) return byId;
-            if (_byKey.TryGetValue(key, out var exact)) return exact;
-
-            // Fuzzy: link to the most-similar cached player above the threshold (only compare names of
-            // a comparable length to avoid absurd matches).
-            Player best = null; double bestScore = 0;
-            foreach (var p in _all)
-            {
-                if (p.Key.Length == 0) continue;
-                double lr = (double)Math.Min(key.Length, p.Key.Length) / Math.Max(key.Length, p.Key.Length);
-                if (lr < 0.6) continue;
-                double s = TextOps.Similarity(key, p.Key);
-                if (s > bestScore) { bestScore = s; best = p; }
-            }
-            if (best != null && bestScore >= _cfg.PlayerFuzzyThreshold) return best;
-
-            var np = new Player { Id = "n:" + key, Name = rawName?.Trim(), Key = key, FirstSeen = DateTime.UtcNow.ToString("o") };
-            Index(np);
-            return np;
-        }
+        protected override Player CreateEntity(string id, string key, string rawName) =>
+            new Player { Id = id, Key = key, Name = rawName?.Trim(), FirstSeen = DateTime.UtcNow.ToString("o") };
 
         // ---- event intake ----
-        private void OnEvent(HelperEvent evt)
+        protected override void OnEvent(HelperEvent evt)
         {
             try
             {
@@ -164,13 +84,13 @@ namespace WarzoneHelper.Game
                     case EventNames.PlayerInspected: OnInspect(evt); break;
                 }
             }
-            catch (Exception ex) { _bus.Log($"[roster] {ex.Message}"); }
+            catch (Exception ex) { Bus.Log($"[roster] {ex.Message}"); }
         }
 
         private void OnServer(HelperEvent evt, bool connected)
         {
             var ep = $"{evt.Str("ip")}:{evt.Str("port")}";
-            lock (_lock)
+            lock (Lock)
             {
                 if (connected)
                 {
@@ -182,18 +102,11 @@ namespace WarzoneHelper.Game
             }
         }
 
-        /// <summary>End the current match: everyone drops out of the active roster (cache kept).</summary>
-        private void NewMatch()
+        /// <summary>End the current match: reset self, then let the base drop the active roster.</summary>
+        protected override void NewMatch()
         {
-            List<Player> left;
-            lock (_lock)
-            {
-                left = _all.Where(p => p.InMatch).ToList();
-                foreach (var p in left) p.InMatch = false;
-                _selfKey = null; _selfBasis = 0;
-            }
-            foreach (var p in left.Where(p => p.Confirmed)) Emit(EventNames.PlayerLeft, p);
-            _bus.Log($"[roster] new match ({left.Count} players left the active roster)");
+            lock (Lock) { _selfKey = null; _selfBasis = 0; }
+            base.NewMatch();
         }
 
         private void OnList(HelperEvent evt, string team)
@@ -243,9 +156,9 @@ namespace WarzoneHelper.Game
             if (string.IsNullOrEmpty(actId)) return;
             // Inspected player has no name in the panel we parse reliably; key by Activision id.
             Player p; bool joined = false;
-            lock (_lock)
+            lock (Lock)
             {
-                if (!_byActId.TryGetValue(actId, out p))
+                if (!ByAltKey.TryGetValue(actId, out p))
                 {
                     p = new Player { Id = "a:" + actId, ActivisionId = actId, Key = "act" + actId, FirstSeen = DateTime.UtcNow.ToString("o") };
                     Index(p); joined = MarkConfirmed(p);
@@ -255,9 +168,9 @@ namespace WarzoneHelper.Game
                 if (evt.Data.TryGetValue("rank", out var rk)) p.Rank = rk?.ToString();
                 if (evt.Data.TryGetValue("platform", out var pl)) p.Platform = pl?.ToString();
                 if (evt.Data.TryGetValue("input", out var ip)) p.Input = ip?.ToString();
-                _dirty = true;
+                Dirty = true;
             }
-            Emit(joined ? EventNames.PlayerJoined : EventNames.PlayerChanged, p);
+            if (joined) EmitJoined(p); else EmitChanged(p);
         }
 
         /// <summary>Add/refresh a player from any source. Confidence-gated before it's surfaced.</summary>
@@ -265,7 +178,7 @@ namespace WarzoneHelper.Game
         {
             if (string.IsNullOrWhiteSpace(rawName)) return null;
             Player p; bool joined = false, changed = false;
-            lock (_lock)
+            lock (Lock)
             {
                 p = Resolve(rawName, null);
                 if (p == null) return null;
@@ -280,51 +193,35 @@ namespace WarzoneHelper.Game
                 if (level.HasValue && p.Level != level) { p.Level = level; changed = true; }
                 if (p.Status == "disconnected") { p.Status = "active"; changed = true; }
 
-                if (!p.Confirmed && p.Sightings >= _cfg.ConfidenceEstablish) joined = MarkConfirmed(p);
-                _dirty = true;
+                if (!p.Confirmed && p.Sightings >= ConfidenceEstablish) joined = MarkConfirmed(p);
+                Dirty = true;
             }
-            if (joined) Emit(EventNames.PlayerJoined, p);
-            else if (changed && p.Confirmed) Emit(EventNames.PlayerChanged, p);
+            if (joined) EmitJoined(p);
+            else if (changed && p.Confirmed) EmitChanged(p);
             return p;
         }
 
-        private bool MarkConfirmed(Player p) { p.Confirmed = true; return true; }
-
         private void SetField(Player p, Action mutate)
         {
-            bool ch; lock (_lock) { var before = p.Status + p.Banned; mutate(); ch = (p.Status + p.Banned) != before; _dirty = true; }
-            if (ch && p.Confirmed) Emit(EventNames.PlayerChanged, p);
+            bool ch; lock (Lock) { var before = p.Status + p.Banned; mutate(); ch = (p.Status + p.Banned) != before; Dirty = true; }
+            if (ch && p.Confirmed) EmitChanged(p);
         }
 
         private void SetSelf(string key, int basis)
         {
             var changed = new List<Player>();
-            lock (_lock)
+            lock (Lock)
             {
                 if (_selfKey == key) { if (basis > _selfBasis) _selfBasis = basis; return; }
                 if (_selfKey != null && basis <= _selfBasis) return;
-                if (_selfKey != null && _byKey.TryGetValue(_selfKey, out var old) && old.Team == "self") { old.Team = "squad"; changed.Add(old); }
+                if (_selfKey != null && ByKey.TryGetValue(_selfKey, out var old) && old.Team == "self") { old.Team = "squad"; changed.Add(old); }
                 _selfKey = key; _selfBasis = basis;
-                if (_byKey.TryGetValue(key, out var p) && p.Team != "self") { p.Team = "self"; changed.Add(p); }
+                if (ByKey.TryGetValue(key, out var p) && p.Team != "self") { p.Team = "self"; changed.Add(p); }
             }
-            foreach (var p in changed.Where(x => x.Confirmed)) Emit(EventNames.PlayerChanged, p);
+            foreach (var p in changed.Where(x => x.Confirmed)) EmitChanged(p);
         }
 
         private static int Rank(string team)
         { switch (team) { case "self": return 4; case "squad": return 3; case "enemy": return 2; case "online": return 1; default: return 0; } }
-
-        private void Sweep()
-        {
-            // Drop players from the ACTIVE roster after inactivity (cache is kept forever).
-            var cutoff = DateTime.UtcNow.AddSeconds(-_cfg.PlayerRetainSec);
-            List<Player> gone = new List<Player>();
-            lock (_lock)
-                foreach (var p in _all.Where(p => p.InMatch))
-                    if (DateTime.TryParse(p.LastSeen, out var ls) && ls.ToUniversalTime() < cutoff) { p.InMatch = false; gone.Add(p); }
-            foreach (var p in gone.Where(p => p.Confirmed)) Emit(EventNames.PlayerLeft, p);
-        }
-
-        private void Emit(string name, Player p) =>
-            _bus.Publish(name, EventSource.ScreenCv, e => { foreach (var kv in p.ToDict()) e.With(kv.Key, kv.Value); });
     }
 }
