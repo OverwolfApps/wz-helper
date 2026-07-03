@@ -2,7 +2,9 @@
 let selfWindowId = null;
 overwolf.windows.getCurrentWindow((r) => { if (r.status === 'success') selfWindowId = r.window.id; });
 
-const ALL_EVENTS = [
+// Fallback list used only until the agent's HELPER_STARTED catalog arrives (then it's replaced by
+// the self-described event names, so nothing here is hardcoded long-term).
+let ALL_EVENTS = [
   'HELPER_STARTED','HELPER_STOPPED','GAME_PROCESS_STARTED','GAME_PROCESS_STOPPED',
   'GAME_SERVER_CONNECTED','GAME_SERVER_DISCONNECTED','SERVICE_CONNECTED','SERVICE_DISCONNECTED',
   'GAME_STATUS_CHANGED','MATCH_STARTED','MATCH_ENDED','SCENE_CHANGED','MODE_CHANGED',
@@ -11,6 +13,8 @@ const ALL_EVENTS = [
   'PARTY_CODE_CHANGED','PLAYER_INSPECTED','PLAYER_JOINED','PLAYER_LEFT','PLAYER_CHANGED',
   'LOG_FILE_ADDED','LOG_FILE_REMOVED','LOG_LINE_ADDED',
 ];
+let EVENT_DOCS = {};   // name -> { description, fields:[{name,type,description}] } from the catalog
+const LS_EVENTS_HASH = 'wzh_events_hash';
 const NAME_CLASS = {
   GAME_SERVER_CONNECTED:'game', GAME_SERVER_DISCONNECTED:'game', SERVICE_CONNECTED:'svc',
   SERVICE_DISCONNECTED:'svc', PLAYER_DEAD:'dead', HEALTH_CHANGED:'warn', GAME_STATUS_CHANGED:'warn',
@@ -44,12 +48,46 @@ const filterPanel = document.getElementById('filter-panel');
 const filterList = document.getElementById('filter-list');
 filterBtn.onclick = () => filterPanel.classList.toggle('open');
 document.addEventListener('click', (e) => { if (!filterPanel.contains(e.target) && e.target !== filterBtn) filterPanel.classList.remove('open'); });
-for (const name of ALL_EVENTS) {
-  const lbl = document.createElement('label');
-  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = enabled.has(name); cb.dataset.name = name;
-  cb.onchange = () => { cb.checked ? enabled.add(name) : enabled.delete(name); saveFilters(); applyFilter(); };
-  lbl.appendChild(cb); lbl.appendChild(document.createTextNode(name));
-  filterList.appendChild(lbl);
+function buildFilterList() {
+  filterList.innerHTML = '';
+  for (const name of ALL_EVENTS) {
+    const lbl = document.createElement('label');
+    const doc = EVENT_DOCS[name];
+    if (doc && doc.description) lbl.title = doc.description;   // hover shows the event's description
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = enabled.has(name); cb.dataset.name = name;
+    cb.onchange = () => { cb.checked ? enabled.add(name) : enabled.delete(name); saveFilters(); applyFilter(); };
+    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(name));
+    filterList.appendChild(lbl);
+  }
+}
+buildFilterList();
+
+// Adopt the agent's self-described event catalog (from HELPER_STARTED): rebuild the event list +
+// filter from it, and flag when the schema changed since the last run this window saw.
+function applyCatalog(data) {
+  const docs = Array.isArray(data.events) ? data.events : [];
+  if (!docs.length) return;
+  EVENT_DOCS = {}; for (const d of docs) EVENT_DOCS[d.name] = d;
+  const hadSaved = localStorage.getItem(LS_FILTERS) != null;
+  ALL_EVENTS = docs.map(d => d.name);
+  // Enable any newly-appeared events by default so nothing silently hides.
+  for (const n of ALL_EVENTS) if (!hadSaved || !enabled.has(n)) enabled.add(n);
+  saveFilters();
+  buildFilterList();
+  applyFilter();
+
+  const prev = localStorage.getItem(LS_EVENTS_HASH);
+  if (data.eventsHash && prev && prev !== data.eventsHash)
+    noticeRow(`event schema changed (${docs.length} events, ${prev} → ${data.eventsHash})`);
+  if (data.eventsHash) localStorage.setItem(LS_EVENTS_HASH, data.eventsHash);
+}
+
+function noticeRow(text) {
+  const row = document.createElement('div');
+  row.className = 'row'; row.dataset.name = '_notice';
+  row.innerHTML = `<div class="time">${new Date().toLocaleTimeString()}</div>` +
+    `<div class="name warn">SCHEMA</div><div class="data">${text}</div>`;
+  logEl.prepend(row);
 }
 document.getElementById('filter-all').onclick = () => setAll(true);
 document.getElementById('filter-none').onclick = () => setAll(false);
@@ -81,6 +119,7 @@ function flagImg(iso) {
 
 function render(entry) {
   const { name, data, at } = entry;
+  if (name === 'HELPER_STARTED' && data && Array.isArray(data.events)) applyCatalog(data);
   const row = document.createElement('div');
   row.className = 'row'; row.dataset.name = name;
   if (!enabled.has(name)) row.style.display = 'none';
@@ -94,6 +133,7 @@ function render(entry) {
 
 function summarize(name, d) {
   if (!d) return '';
+  if (name === 'HELPER_STARTED') return `${d.game||''} v${d.version||'?'} · ${d.eventCount||(d.events||[]).length} events (${d.eventsHash||''})`;
   if (name.startsWith('GAME_SERVER') || name.startsWith('SERVICE')) {
     const geo = [d.city, d.countryIso].filter(Boolean).join(', ');
     const vpn = d.isLikelyVPN ? `⚠VPN?(${d.vpnReason})` : '';

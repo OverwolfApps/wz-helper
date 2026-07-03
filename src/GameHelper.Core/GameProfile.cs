@@ -47,6 +47,10 @@ namespace GameHelper.Core
         /// default. Lets a game interpret its vendor's status shape without Core knowing it.</summary>
         IStatusParser CreateStatusParser(HelperConfig cfg);
 
+        /// <summary>The game's own event descriptors, merged with Core's into the HELPER_STARTED
+        /// catalog. Empty/null if the game adds no events.</summary>
+        IEnumerable<Events.EventDoc> Events { get; }
+
         /// <summary>Build the game-specific monitors (screen analysis, roster, ...).</summary>
         IEnumerable<IMonitor> CreateGameMonitors(GameContext ctx);
     }

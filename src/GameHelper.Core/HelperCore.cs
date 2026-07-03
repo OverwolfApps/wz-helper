@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GameHelper.Core.Config;
 using GameHelper.Core.Events;
 using GameHelper.Core.Geo;
@@ -42,7 +43,14 @@ namespace GameHelper.Core
             if (_running) return;
             _running = true;
 
-            _bus.Publish(EventNames.HelperStarted, "core", e => e.With("version", "1.0.0").With("game", _profile.Name));
+            // Self-describing event catalog (Core + game) so consumers discover events/fields at
+            // runtime and can detect schema changes via eventsHash.
+            var catalog = EventCatalog.Core.Concat(_profile.Events ?? System.Linq.Enumerable.Empty<EventDoc>()).ToList();
+            _bus.Publish(EventNames.HelperStarted, "core", e => e
+                .With("version", "1.0.0").With("game", _profile.Name)
+                .With("events", catalog)
+                .With("eventsHash", EventCatalog.Hash(catalog))
+                .With("eventCount", catalog.Count));
 
             // Externalized OCR rules (whitelists/patterns/lengths/confidence) from ocr.jsonc, applied
             // onto the active game's field registry.

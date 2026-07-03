@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using GameHelper.Core;
 using GameHelper.Core.Config;
+using GameHelper.Core.Events;
 using GameHelper.Core.Monitors;
 using GameHelper.Core.Screen;
 
@@ -19,6 +20,8 @@ namespace WarzoneHelper.Game
 
         public IStatusParser CreateStatusParser(HelperConfig cfg) =>
             new WarzoneStatusParser(cfg?.StatusGameTitles);
+
+        public IEnumerable<EventDoc> Events => WarzoneEvents.Catalog;
 
         public string PerfStripWhitelist
         {
