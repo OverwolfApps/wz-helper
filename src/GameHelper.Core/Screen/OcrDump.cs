@@ -38,8 +38,7 @@ namespace GameHelper.Core.Screen
             try
             {
                 lock (_io)
-                    File.AppendAllText(Path.Combine(_dir, category + ".txt"),
-                        $"{DateTime.Now:HH:mm:ss}\t{text}{Environment.NewLine}");
+                    File.AppendAllText(Path.Combine(_dir, category + ".txt"), text + Environment.NewLine);
             }
             catch { /* best-effort */ }
         }

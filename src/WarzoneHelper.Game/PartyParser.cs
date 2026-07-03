@@ -97,10 +97,9 @@ namespace WarzoneHelper.Game
             int end = s.Length - 1;
             while (end >= 0 && !(char.IsLetterOrDigit(s[end]) || s[end] == ']')) end--;
             if (end < start) return "";
-            var name = Regex.Replace(s.Substring(start, end - start + 1).Trim(), @"\s{2,}", " ");
-            // Drop leading/trailing 1-2 char OCR-artifact tokens (rank emblem / platform icon bleed,
-            // e.g. "1f RealName", "K, RealName", "RealName xx").
-            return OcrFields.StripEdgeTokens(name);
+            // Collapse double spaces; leading/trailing 1-2 char emblem/icon bleed is stripped in
+            // OcrFields.PlayerName.Parse (Clean) which this name is validated by.
+            return Regex.Replace(s.Substring(start, end - start + 1).Trim(), @"\s{2,}", " ");
         }
     }
 }

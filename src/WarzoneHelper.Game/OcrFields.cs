@@ -74,6 +74,9 @@ namespace WarzoneHelper.Game
             Establish = 2, Overturn = 4, Window = 12,
             Reject = Chrome,
             Pattern = null,
+            // Drop rank-emblem / platform-icon OCR bleed (1-2 char edge tokens) before validating,
+            // so every name path (party, squad, killfeed, chat, spectate) benefits.
+            Clean = StripEdgeTokens,
             Validate = v => NamePattern.IsMatch(v),
         };
 

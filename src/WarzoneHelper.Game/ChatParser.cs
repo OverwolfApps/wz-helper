@@ -57,7 +57,7 @@ namespace WarzoneHelper.Game
                     var text = string.Join(" ", body).Trim();
                     if (text.Length > 0 && TextOps.HasLetters(name + text))
                     {
-                        var cleanName = Clean(name);
+                        var cleanName = Clean(name);   // edge-token bleed stripped in PlayerName.Parse
                         var msg = new ChatMessage
                         {
                             // Validated channel + player-name via the shared field specs (fall back to
