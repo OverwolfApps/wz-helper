@@ -88,8 +88,8 @@ namespace WarzoneHelper.Game
                 var lobbyText = ReadRegion(frame, _regions.LobbyId, OcrFields.LobbyId.Whitelist, singleLine: true);
                 _lobbyId.Observe(lobbyText);       // confidence-gated (validated inside)
                 s.LobbyId = _lobbyId.Value;
-                #region OCR dump
-                OcrDump.Dump("lobbyid", lobbyText);
+                #region OCR dump — only successful (validated) reads
+                OcrDump.Dump("lobbyid", OcrFields.LobbyId.Parse(lobbyText));
                 #endregion
 
                 // Build/version watermark (shown in menus and in-match). Confidence-gated so it only
@@ -98,46 +98,36 @@ namespace WarzoneHelper.Game
                 _gameVersion.Observe(versionText);
                 s.GameVersion = _gameVersion.Value;
                 #region OCR dump
-                OcrDump.Dump("version", versionText);
+                OcrDump.Dump("version", OcrFields.GameVersion.Parse(versionText));
                 #endregion
 
                 if (inMatch)
                 {
                     // Chat overlay (upper-right) -> grouped into messages by ChatParser.
-                    var chatRaw = ReadRegion(frame, _regions.Chat, null, singleLine: false);
-                    s.ChatLines = ScreenOps.SplitLines(chatRaw);
+                    s.ChatLines = ScreenOps.SplitLines(ReadRegion(frame, _regions.Chat, null, singleLine: false));
                     // In a match the player list is the bottom-left squad panel.
-                    var squadRaw = ReadRegion(frame, _regions.InGameSquad, null, singleLine: false);
-                    s.PartyLines = ScreenOps.SplitLines(squadRaw);
+                    s.PartyLines = ScreenOps.SplitLines(ReadRegion(frame, _regions.InGameSquad, null, singleLine: false));
                     // Killfeed + event log (left-middle) — names of enemies and disconnects.
-                    var feedRaw = ReadRegion(frame, _regions.Feed, null, singleLine: false);
-                    s.FeedLines = ScreenOps.SplitLines(feedRaw);
+                    s.FeedLines = ScreenOps.SplitLines(ReadRegion(frame, _regions.Feed, null, singleLine: false));
                     // Spectating panel (bottom-center) when dead.
                     var spec = ReadRegion(frame, _regions.Spectating, null, singleLine: false);
                     var sm = spec != null ? SpectateRegex.Match(spec) : Match.Empty;
                     if (sm.Success) { _spectateName.Observe(sm.Groups[1].Value); _spectateId.Observe(spec); }
                     s.SpectatingName = _spectateName.Value;
                     s.SpectatingId = _spectateId.Value;
-                    #region OCR dump
-                    OcrDump.Dump("chat", chatRaw); OcrDump.Dump("squad", squadRaw);
-                    OcrDump.Dump("feed", feedRaw); OcrDump.Dump("spectate", spec);
-                    #endregion
                 }
                 else
                 {
                     // Lobby: top-right panel. Many members => the full match/lobby list, not your party.
-                    var partyRaw = ReadRegion(frame, _regions.Party, null, singleLine: false);
-                    s.PartyLines = ScreenOps.SplitLines(partyRaw);
+                    s.PartyLines = ScreenOps.SplitLines(ReadRegion(frame, _regions.Party, null, singleLine: false));
                     s.PartyIsMatchList = (s.PartyLines?.Length ?? 0) > 8;
                     // Party/invite code (party-code menu). Confidence-gated; persists once set.
                     var partyCodeRaw = ReadRegion(frame, _regions.PartyCode, OcrFields.PartyCode.Whitelist, singleLine: true);
                     _partyCode.Observe(partyCodeRaw);
                     // Inspect-player detail panel (rich per-player data; only parses on that screen).
-                    var inspectRaw = ReadRegion(frame, _regions.Inspect, null, singleLine: false);
-                    s.Inspect = InspectParser.Parse(inspectRaw);
-                    #region OCR dump
-                    OcrDump.Dump("partycode", partyCodeRaw); OcrDump.Dump("party", partyRaw);
-                    OcrDump.Dump("inspect", inspectRaw);
+                    s.Inspect = InspectParser.Parse(ReadRegion(frame, _regions.Inspect, null, singleLine: false));
+                    #region OCR dump — only the validated code
+                    OcrDump.Dump("partycode", OcrFields.PartyCode.Parse(partyCodeRaw));
                     #endregion
                 }
                 s.PartyCode = _partyCode.Value;   // cached value (never cleared per match)

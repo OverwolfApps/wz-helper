@@ -135,6 +135,9 @@ namespace WarzoneHelper.Game
                     if (_recentChat.Contains(msg.Key)) continue;   // already emitted this message
                     if (!_chatVotes.Cast(msg.Key, now)) continue;  // not confident yet
                     _recentChat.Add(msg.Key);
+                    #region OCR dump — confident chat messages
+                    GameHelper.Core.Screen.OcrDump.Dump("chat", $"[{msg.Channel}] {msg.Name}: {msg.Text}");
+                    #endregion
                     WarzoneEvents.ChatMessage.Emit(_bus, e2 => e2
                         .With("channel", msg.Channel).With("name", msg.Name).With("text", msg.Text));
                 }
@@ -146,6 +149,9 @@ namespace WarzoneHelper.Game
             if (s.PartyLines != null && s.PartyLines.Length > 0)
             {
                 var members = PartyParser.Parse(s.PartyLines);
+                #region OCR dump — validated player names
+                foreach (var m in members) GameHelper.Core.Screen.OcrDump.Dump("names", m.Name);
+                #endregion
                 // Include the section in the stable key so a member moving PARTY<->ONLINE re-emits.
                 var key = string.Join("|", members.Select(m => (m.Group ?? "") + ":" + m.Key));
 
@@ -208,6 +214,10 @@ namespace WarzoneHelper.Game
                 {
                     if (_recentChat.Contains(item.Key)) continue;
                     _recentChat.Add(item.Key);
+                    #region OCR dump — parsed killfeed entries
+                    GameHelper.Core.Screen.OcrDump.Dump("feed", item.Type == "kill"
+                        ? $"{item.Killer} > {item.Victim}" : $"{item.Player} {item.Event}");
+                    #endregion
                     if (item.Type == "kill")
                         WarzoneEvents.KillfeedEntry.Emit(_bus, e => e
                             .With("killer", item.Killer).With("victim", item.Victim));
