@@ -48,6 +48,13 @@ namespace WarzoneHelper.Game
         /// <summary>Name-similarity (0..1) at/above which a new read is linked to an existing cached
         /// player instead of creating a new one (kills OCR-variant duplicates / made-up players).</summary>
         public double PlayerFuzzyThreshold { get; set; } = 0.84;
+        /// <summary>When true, newly-confirmed player names are validated online against Activision's
+        /// checkUsername endpoint (in the background); a name it explicitly rejects is dropped.
+        /// NOTE: that endpoint is behind Akamai bot management and returns 403 to automated requests
+        /// (the cookie needs a real browser JS challenge), so this is effectively a no-op today —
+        /// it fails to "unknown" and never false-rejects. Left as opt-in plumbing in case a valid
+        /// session cookie can be supplied later (e.g. from the Overwolf webview). Off by default.</summary>
+        public bool VerifyUsernamesOnline { get; set; } = false;
         /// <summary>Screen regions (normalized 0..1) for the analyzer. See <see cref="ScreenRegions"/>.</summary>
         public ScreenRegions Regions { get; set; } = new ScreenRegions();
     }

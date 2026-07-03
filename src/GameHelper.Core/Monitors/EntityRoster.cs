@@ -120,6 +120,19 @@ namespace GameHelper.Core.Monitors
             if (!string.IsNullOrEmpty(e.AltKey)) ByAltKey[e.AltKey] = e;
         }
 
+        /// <summary>Remove an entity entirely from the cache + indexes (e.g. it was rejected as invalid).</summary>
+        protected void Remove(T e)
+        {
+            if (e == null) return;
+            lock (Lock)
+            {
+                All.Remove(e);
+                if (!string.IsNullOrEmpty(e.Key) && ByKey.TryGetValue(e.Key, out var byk) && ReferenceEquals(byk, e)) ByKey.Remove(e.Key);
+                if (!string.IsNullOrEmpty(e.AltKey) && ByAltKey.TryGetValue(e.AltKey, out var bya) && ReferenceEquals(bya, e)) ByAltKey.Remove(e.AltKey);
+                Dirty = true;
+            }
+        }
+
         /// <summary>Resolve a name (+ optional alt id) to an existing entry or a freshly-created one:
         /// alt-key exact → normalized-key exact → best fuzzy match above the threshold → new.</summary>
         protected T Resolve(string rawName, string altId)

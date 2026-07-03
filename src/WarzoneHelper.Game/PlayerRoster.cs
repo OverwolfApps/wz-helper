@@ -48,6 +48,7 @@ namespace WarzoneHelper.Game
         }
 
         private readonly WarzoneConfig _cfg;
+        private readonly CodUsernameVerifier _verifier;   // null unless VerifyUsernamesOnline
 
         // Match session (set of active game servers; a match uses >1 server on :44998).
         private readonly HashSet<string> _activeServers = new HashSet<string>();
@@ -64,6 +65,24 @@ namespace WarzoneHelper.Game
                    WarzoneEvents.PlayerJoined, WarzoneEvents.PlayerChanged, WarzoneEvents.PlayerLeft)
         {
             _cfg = cfg;
+            if (cfg.VerifyUsernamesOnline) _verifier = new CodUsernameVerifier(bus.Log);
+        }
+
+        /// <summary>Background: ask Activision's checkUsername whether the name's format is valid;
+        /// if it explicitly rejects it (not just unknown), drop the player as a likely OCR fake.</summary>
+        private void VerifyAsync(Player p)
+        {
+            if (_verifier == null || p == null) return;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                var ok = _verifier.Check(OcrFields.CoreName(p.Name));
+                if (ok == false)
+                {
+                    Remove(p);
+                    EmitLeft(p);
+                    Bus.Log($"[roster] dropped '{p.Name}' — Activision checkUsername rejected it");
+                }
+            });
         }
 
         protected override Player CreateEntity(string id, string key, string rawName) =>
@@ -197,7 +216,7 @@ namespace WarzoneHelper.Game
                 if (!p.Confirmed && p.Sightings >= ConfidenceEstablish) joined = MarkConfirmed(p);
                 Dirty = true;
             }
-            if (joined) EmitJoined(p);
+            if (joined) { EmitJoined(p); VerifyAsync(p); }
             else if (changed && p.Confirmed) EmitChanged(p);
             return p;
         }

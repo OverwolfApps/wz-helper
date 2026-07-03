@@ -57,11 +57,14 @@ namespace WarzoneHelper.Game
             Validate = v => Regex.IsMatch(v, @"^\d{1,2}\.\d{1,2}\.\d{4,}") && v.Length >= 20,
         };
 
-        /// <summary>A Warzone/Activision display name. Per the in-game rule an Activision ID display
-        /// name is 2-16 characters, unicode letters + digits (no special characters; underscore is
-        /// tolerated since it occurs in real ids). We allow an optional leading clan tag "[TAG]" and
-        /// a trailing "#activisionId" around it (in-game framing), strip those, then validate the
-        /// core name against the 2-16 rule. Still rejects UI chrome and requires a letter.</summary>
+        /// <summary>A Warzone/Activision display name. Activision IDs are 2-16 characters; the
+        /// authoritative rule is server-side (profile.callofduty.com/cod/checkUsername) — the site
+        /// itself only length-checks client-side, and that endpoint accepts spaces (e.g. "bist gut
+        /// genuuug" is valid). So we enforce 2-16 with a lenient charset (unicode letters + digits +
+        /// space/underscore/period/hyphen), which still rejects OCR garbage (brackets, commas,
+        /// slashes) while not over-restricting real names. Optionally confirmed online via
+        /// CodUsernameVerifier. We strip an optional leading clan tag "[TAG]" and a trailing
+        /// "#activisionId" first; still rejects UI chrome and requires a letter.</summary>
         public static readonly OcrField PlayerName = new OcrField
         {
             Name = "playerName",
@@ -71,18 +74,25 @@ namespace WarzoneHelper.Game
             Establish = 2, Overturn = 4, Window = 12,
             Reject = Chrome,
             Pattern = null,
-            Validate = v =>
-            {
-                // Strip an optional leading clan tag "[TAG]" and a trailing "#1234567" (Activision id).
-                var core = Regex.Replace(v, @"^\[[^\]]{1,6}\]\s*", "");
-                core = Regex.Replace(core, @"\s*#\d+$", "").Trim();
-                // Activision display name: 2-16 chars, unicode letters/digits (+ underscore), no
-                // special characters, and at least one letter (rejects all-digit OCR noise).
-                return core.Length >= 2 && core.Length <= 16
-                    && Regex.IsMatch(core, @"^[\p{L}\p{N}_]+$")
-                    && Regex.IsMatch(core, @"\p{L}");
-            }
+            Validate = v => IsValidDisplayName(CoreName(v)),
         };
+
+        /// <summary>Strip an optional leading clan tag "[TAG]" and trailing "#1234567" to the bare name.</summary>
+        public static string CoreName(string v)
+        {
+            if (string.IsNullOrEmpty(v)) return v;
+            var core = Regex.Replace(v, @"^\[[^\]]{1,6}\]\s*", "");
+            core = Regex.Replace(core, @"\s*#\d+$", "");
+            return core.Trim();
+        }
+
+        /// <summary>Activision display-name shape: 2-16 chars, at least one letter, and only unicode
+        /// letters/digits plus space/underscore/period/hyphen (matches what checkUsername accepts,
+        /// while rejecting OCR bracket/comma/slash garbage).</summary>
+        public static bool IsValidDisplayName(string core) =>
+            !string.IsNullOrEmpty(core) && core.Length >= 2 && core.Length <= 16
+            && Regex.IsMatch(core, @"^[\p{L}\p{N} _.\-]+$")
+            && Regex.IsMatch(core, @"\p{L}");
 
         /// <summary>"name#1234567" spectated-player id.</summary>
         public static readonly OcrField SpectateId = new OcrField
