@@ -31,6 +31,7 @@ namespace GameHelper.Core.Events
         // --- Screen / CV derived (ours), plus GEP hints layered on top ---
         public const string MatchStarted = "MATCH_STARTED";
         public const string MatchEnded = "MATCH_ENDED";
+        public const string MatchStateChanged = "MATCH_STATE_CHANGED"; // our derived "in a match?" flag flipped
         public const string SceneChanged = "SCENE_CHANGED";     // lobby_wz / in_game / ...
         public const string ModeChanged = "MODE_CHANGED";
         public const string GameLaunched = "GAME_LAUNCHED";     // GEP: game process launched (full gameInfo)

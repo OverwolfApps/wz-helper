@@ -13,11 +13,15 @@ namespace GameHelper.Core
         public bool InMatch => _inMatch;
         public DateTime? SinceUtc { get; private set; }
 
+        /// <summary>Raised (with the new value) whenever the flag actually flips.</summary>
+        public event Action<bool> Changed;
+
         public void Set(bool inMatch)
         {
             if (_inMatch == inMatch) return;
             _inMatch = inMatch;
             SinceUtc = inMatch ? DateTime.UtcNow : (DateTime?)null;
+            try { Changed?.Invoke(inMatch); } catch { }
         }
     }
 }

@@ -5,7 +5,8 @@ overwolf.windows.getCurrentWindow((r) => { if (r.status === 'success') selfWindo
 document.getElementById('close').onclick = () => selfWindowId && overwolf.windows.hide(selfWindowId, () => {});
 
 const els = {
-  game: document.getElementById('s-game'), server: document.getElementById('s-server'),
+  game: document.getElementById('s-game'), match: document.getElementById('s-match'),
+  server: document.getElementById('s-server'),
   ping: document.getElementById('s-ping'), health: document.getElementById('s-health'),
   lobby: document.getElementById('s-lobby'), party: document.getElementById('s-party'),
   status: document.getElementById('s-status'),
@@ -60,6 +61,7 @@ function update(name, d) {
   switch (name) {
     case 'GAME_PROCESS_STARTED': setField(els.game, 'running'); break;
     case 'GAME_PROCESS_STOPPED': setField(els.game, 'closed'); break;
+    case 'MATCH_STATE_CHANGED': setField(els.match, d.inMatch ? 'in match' : 'lobby', d.inMatch ? 'ok' : 'warn'); break;
     case 'GAME_SERVER_CONNECTED':
       setFieldHtml(els.server, `${flagImg(d.countryIso)}${d.city || d.countryIso || d.ip}${d.isLikelyVPN?' ⚠':''}`);
       setField(els.ping, d.pingMs >= 0 ? `${d.pingMs} ms` : (d.bytesPerSec ? `n/a · ${d.bytesPerSec} B/s` : 'n/a')); break;

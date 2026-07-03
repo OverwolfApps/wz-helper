@@ -64,9 +64,15 @@ namespace WarzoneHelper.Game
             var s = new ScreenState();
             if (frame == null) return s;
 
-            s.HealthFraction = EstimateHealth(frame, _regions.Health);
-            s.DeathBannerVisible = DetectReddishBanner(frame, _regions.DeathBanner, minRatio: 0.10);
+            // Deploy is a match-START signal, so it must run even out of match. Health and the death
+            // banner only make sense during an actual match — don't sample them otherwise (avoids
+            // false reds from menus and wasted work).
             s.DeployBannerVisible = DetectBrightBanner(frame, _regions.DeployBanner, minRatio: 0.25);
+            if (inMatch)
+            {
+                s.HealthFraction = EstimateHealth(frame, _regions.Health);
+                s.DeathBannerVisible = DetectReddishBanner(frame, _regions.DeathBanner, minRatio: 0.10);
+            }
 
             // Skip all OCR for undersized frames (e.g. loading), which otherwise trip Tesseract's
             // "Image too small to scale" errors and produce garbage.

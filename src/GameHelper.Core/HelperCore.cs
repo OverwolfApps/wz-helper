@@ -60,6 +60,9 @@ namespace GameHelper.Core
             // Derive coarse match state from our own CV events + GEP hints, so the NetworkMonitor can
             // stamp/filter game-server events by whether we're actually in a match.
             _bus.OnEvent += UpdateMatchState;
+            // Surface the flag so consumers can see when the agent thinks it's in a match (and why
+            // the in-match-only OCR runs).
+            _match.Changed += inMatch => CoreEvents.MatchStateChanged.Emit(_bus, e => e.With("inMatch", inMatch));
 
             // GeoIP (shared)
             _geo = new GeoIpResolver();

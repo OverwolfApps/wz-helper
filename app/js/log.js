@@ -156,6 +156,7 @@ function summarize(name, d) {
   if (name === 'GAME_STATUS_CHANGED') return d.ok ? 'all OK' : (d.activeIssues!=null ? `${d.activeIssues} issue(s)` : `${d.gameTitle}: ${d.change}`);
   if (name === 'LOG_LINE_ADDED') return (d.level ? `[${d.level}] ` : '') + (d.line ? d.line.slice(0,160) : '');
   if (name === 'LOG_FILE_ADDED' || name === 'LOG_FILE_REMOVED') return d.path || '';
+  if (name === 'MATCH_STATE_CHANGED') return d.inMatch ? '▶ IN MATCH' : '⏹ not in match';
   if (name === 'SCENE_CHANGED') return `scene → ${d.raw}`;
   if (name === 'MODE_CHANGED') return `mode → ${d.raw}`;
   if (name === 'GEP_INFO') return (d.raw || '').slice(0, 140);

@@ -47,6 +47,12 @@ namespace GameHelper.Core.Events
         public static readonly EventDef HelperStopped = new EventDef(
             EventNames.HelperStopped, EventSource.Core, "Agent stopped gracefully.");
 
+        public static readonly EventDef MatchStateChanged = new EventDef(
+            EventNames.MatchStateChanged, EventSource.Core,
+            "The agent's derived 'in a match?' flag flipped (currently == connected to a game server). " +
+            "In-match-only CV (health, death, chat, killfeed) runs only while this is true.",
+            F("inMatch", "bool", "true when we believe we're in a match"));
+
         public static readonly EventDef HelperError = new EventDef(
             EventNames.HelperError, EventSource.Core, "A fatal/notable agent error.",
             F("message", "string", "error text"));
