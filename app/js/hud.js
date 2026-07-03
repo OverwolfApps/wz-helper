@@ -29,8 +29,11 @@ const bar = document.querySelector('.bar');
 
 // Hide every field until it has a value; party code persists across matches.
 Object.values(els).forEach((el) => { el.closest('.f').style.display = 'none'; });
+// Party codes are exactly 5 uppercase alphanumerics; drop any stale/invalid cached value.
+const PARTY_CODE_RE = /^[A-Z0-9]{5}$/;
 const savedParty = localStorage.getItem('wzh_partycode');
-if (savedParty) setField(els.party, savedParty);
+if (savedParty && PARTY_CODE_RE.test(savedParty)) setField(els.party, savedParty);
+else localStorage.removeItem('wzh_partycode');
 
 function setField(el, text, cls) {
   const has = text != null && text !== '' && text !== '—';
@@ -92,7 +95,7 @@ function update(name, d) {
     }
     case 'LOBBY_ID_CHANGED': setField(els.lobby, d.lobbyId); break;
     case 'PARTY_CODE_CHANGED':
-      if (d.code) { setField(els.party, d.code); localStorage.setItem('wzh_partycode', d.code); }
+      if (d.code && PARTY_CODE_RE.test(d.code)) { setField(els.party, d.code); localStorage.setItem('wzh_partycode', d.code); }
       break;
     case 'GAME_STATUS_CHANGED':
       if (d.ok === true || d.change === 'all_ok') setField(els.status, 'OK', 'ok');

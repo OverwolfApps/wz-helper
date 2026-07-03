@@ -151,18 +151,18 @@ namespace WarzoneHelper.Game
             Pattern = new Regex(@"(?<v>[0-2]?\d:[0-5]\d)", RegexOptions.Compiled)
         };
 
-        /// <summary>Party/invite code: 4-6 uppercase letters/digits, isolated. High confidence since
-        /// the center region also sees other UI text.</summary>
+        /// <summary>Party/invite code: EXACTLY 5 uppercase letters/digits (e.g. 6V4DK, KDFLK, LLJGJ),
+        /// isolated. High confidence since the center region also sees other UI text.</summary>
         public static readonly OcrField PartyCode = new OcrField
         {
             Name = "partyCode",
             Whitelist = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
             SingleLine = true,
-            MinLength = 4,
-            MaxLength = 6,
+            MinLength = 5,
+            MaxLength = 5,
             Establish = 3, Overturn = 6, Window = 16,
             Clean = s => new string(s.Where(c => char.IsLetterOrDigit(c)).ToArray()).ToUpperInvariant(),
-            Pattern = new Regex(@"^(?<v>[A-Z0-9]{4,6})$", RegexOptions.Compiled),
+            Pattern = new Regex(@"^(?<v>[A-Z0-9]{5})$", RegexOptions.Compiled),
             // "SSSION"/"SESSION" is a recurring OCR false positive (from the word SESSION nearby).
             Reject = new[] { "sssion", "session" },
         };
