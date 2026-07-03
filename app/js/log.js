@@ -156,5 +156,12 @@ function summarize(name, d) {
   if (name === 'GAME_STATUS_CHANGED') return d.ok ? 'all OK' : (d.activeIssues!=null ? `${d.activeIssues} issue(s)` : `${d.gameTitle}: ${d.change}`);
   if (name === 'LOG_LINE_ADDED') return (d.level ? `[${d.level}] ` : '') + (d.line ? d.line.slice(0,160) : '');
   if (name === 'LOG_FILE_ADDED' || name === 'LOG_FILE_REMOVED') return d.path || '';
+  if (name === 'SCENE_CHANGED') return `scene → ${d.raw}`;
+  if (name === 'MODE_CHANGED') return `mode → ${d.raw}`;
+  if (name === 'GEP_INFO') return (d.raw || '').slice(0, 140);
+  if (name === 'GAME_LAUNCHED' || name === 'GAME_TERMINATED') {
+    try { const g = JSON.parse(d.raw || '{}'); return `${g.title || g.displayName || ''} pid ${g.processId || '?'}${g.reason ? ' · ' + g.reason.join(',') : ''}`; }
+    catch { return d.gepName || ''; }
+  }
   return JSON.stringify(d).slice(0,160);
 }

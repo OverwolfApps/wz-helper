@@ -168,9 +168,13 @@ namespace GameHelper.Core
             switch (name)
             {
                 case "match_start": mapped = EventNames.MatchStarted; break;
-                case "match_end": mapped = EventNames.MatchEnded; break;
+                case "match_end":
+                case "match_ended": mapped = EventNames.MatchEnded; break;
                 case "scene": mapped = EventNames.SceneChanged; break;
                 case "mode": mapped = EventNames.ModeChanged; break;
+                case "game_launched": mapped = EventNames.GameLaunched; break;
+                case "game_terminated": mapped = EventNames.GameTerminated; break;
+                case "info": mapped = EventNames.GepInfo; break;
                 default: mapped = name; break;
             }
             _bus.Publish(mapped, EventSource.Gep, e => e.With("raw", data).With("gepName", name));

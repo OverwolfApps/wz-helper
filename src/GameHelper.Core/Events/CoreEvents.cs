@@ -98,5 +98,14 @@ namespace GameHelper.Core.Events
         public static readonly EventDef ModeChanged = new EventDef(
             EventNames.ModeChanged, EventSource.Gep, "GEP hint: game mode changed.",
             F("raw", "string", "mode value"), F("gepName", "string", "original GEP event name"));
+        public static readonly EventDef GameLaunched = new EventDef(
+            EventNames.GameLaunched, EventSource.Gep, "GEP: the game process launched.",
+            F("raw", "string", "gameInfo JSON (pid, renderer, exe, resolution, ...)"), F("gepName", "string", "original GEP event name"));
+        public static readonly EventDef GameTerminated = new EventDef(
+            EventNames.GameTerminated, EventSource.Gep, "GEP: the game process terminated.",
+            F("raw", "string", "gameInfo JSON (incl. terminationUnixEpochTime, reason)"), F("gepName", "string", "original GEP event name"));
+        public static readonly EventDef GepInfo = new EventDef(
+            EventNames.GepInfo, EventSource.Gep, "GEP: a raw info update (game_info / match_info / gep_internal version_info).",
+            F("raw", "string", "the full info object as JSON"), F("gepName", "string", "original GEP event name"));
     }
 }

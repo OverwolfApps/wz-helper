@@ -5,7 +5,8 @@
 const GAME_GEP_ID = 27860;
 
 function registerCodGep(onGepEvent) {
-  const required = ['match_info', 'game_info'];
+  // gep_internal exposes the GEP version_info; match_info/game_info are the CoD feature sets.
+  const required = ['gep_internal', 'match_info', 'game_info'];
   let featuresSet = false;
   let retryTimer = null;
 
@@ -28,9 +29,14 @@ function registerCodGep(onGepEvent) {
   overwolf.games.onGameInfoUpdated.removeListener(onGameInfo);
   overwolf.games.onGameInfoUpdated.addListener(onGameInfo);
   function onGameInfo(e) {
-    const running = e && e.gameInfo && e.gameInfo.isRunning;
-    const isCod = e && e.gameInfo && Math.floor(e.gameInfo.id / 10) === GAME_GEP_ID;
-    if (running && isCod && (e.runningChanged || e.gameChanged)) trySetFeatures();
+    const gi = e && e.gameInfo;
+    const isCod = gi && Math.floor(gi.id / 10) === GAME_GEP_ID;
+    if (!gi || !isCod) return;
+    if (gi.isRunning && (e.runningChanged || e.gameChanged)) trySetFeatures();
+    // Surface the GEP game launch/terminate (with the full gameInfo: pid, renderer, exe,
+    // terminationUnixEpochTime, reason, ...) so consumers get game start/stop from GEP too.
+    if (e.runningChanged)
+      onGepEvent(gi.isRunning ? 'game_launched' : 'game_terminated', JSON.stringify(gi));
   }
 
   // Event + info listeners (idempotent).
@@ -39,15 +45,24 @@ function registerCodGep(onGepEvent) {
   overwolf.games.events.onNewEvents.addListener(handleEvents);
   overwolf.games.events.onInfoUpdates2.addListener(handleInfo);
 
+  // Forward EVERY GEP event verbatim (match_start, match_end, kill, death, ...).
   function handleEvents(e) {
     if (!e || !e.events) return;
     for (const ev of e.events) onGepEvent(ev.name, JSON.stringify(ev.data ?? null));
   }
+
+  // Forward EVERY info update. Keep scene/mode explicit (the agent derives match state from them;
+  // CoD reports the mode as game_info.game_mode), and relay the whole info object as a generic
+  // 'info' hint so nothing (version_info, match_info, ...) is lost.
   function handleInfo(e) {
-    if (!e || !e.info || !e.info.game_info) return;
+    if (!e || !e.info) return;
     const gi = e.info.game_info;
-    if (gi.scene !== undefined) onGepEvent('scene', String(gi.scene));
-    if (gi.mode !== undefined) onGepEvent('mode', String(gi.mode));
+    if (gi) {
+      if (gi.scene !== undefined) onGepEvent('scene', String(gi.scene));
+      const mode = gi.game_mode !== undefined ? gi.game_mode : gi.mode;
+      if (mode !== undefined) onGepEvent('mode', String(mode));
+    }
+    onGepEvent('info', JSON.stringify(e.info));
   }
 
   // Kick off immediately in case the game is already running.

@@ -33,6 +33,9 @@ namespace GameHelper.Core.Events
         public const string MatchEnded = "MATCH_ENDED";
         public const string SceneChanged = "SCENE_CHANGED";     // lobby_wz / in_game / ...
         public const string ModeChanged = "MODE_CHANGED";
+        public const string GameLaunched = "GAME_LAUNCHED";     // GEP: game process launched (full gameInfo)
+        public const string GameTerminated = "GAME_TERMINATED"; // GEP: game process terminated
+        public const string GepInfo = "GEP_INFO";               // GEP: any raw info update (game_info/match_info/gep_internal)
         public const string Deployed = "DEPLOYED";
         public const string HealthChanged = "HEALTH_CHANGED";
         public const string PlayerDead = "PLAYER_DEAD";
