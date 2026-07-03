@@ -28,7 +28,7 @@ function updateCounts() {
 const bar = document.querySelector('.bar');
 
 // Hide every field until it has a value; party code persists across matches.
-Object.values(els).forEach((el) => { el.closest('.f').style.display = 'none'; });
+Object.values(els).forEach((el) => { if (el) el.closest('.f').style.display = 'none'; });
 // Party codes are exactly 5 uppercase alphanumerics; drop any stale/invalid cached value.
 const PARTY_CODE_RE = /^[A-Z0-9]{5}$/;
 const savedParty = localStorage.getItem('wzh_partycode');
@@ -36,6 +36,7 @@ if (savedParty && PARTY_CODE_RE.test(savedParty)) setField(els.party, savedParty
 else localStorage.removeItem('wzh_partycode');
 
 function setField(el, text, cls) {
+  if (!el) return;
   const has = text != null && text !== '' && text !== '—';
   el.closest('.f').style.display = has ? '' : 'none';
   if (has) { el.textContent = text; if (cls !== undefined) el.className = 'v ' + cls; }
