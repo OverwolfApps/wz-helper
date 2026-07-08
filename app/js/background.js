@@ -274,15 +274,23 @@ function initCentralSettings() {
   const appName = "Warzone Helper";
   const regData = {
     app: appName,
-    icon: "https://cdn.simpleicons.org/codstatus",
+    icon: "https://cdn.simpleicons.org/callofduty",
     settings: WZH_SCHEMA
   };
 
-  fetch('http://localhost:61235/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(regData)
-  }).catch(() => {});
+  const register = () => {
+    fetch('http://localhost:61235/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(regData)
+    }).then(res => {
+      if (!res.ok) throw new Error();
+      console.log(`[wz-helper] Registered schema successfully.`);
+    }).catch(() => {
+      setTimeout(register, 3000);
+    });
+  };
+  register();
 
   overwolf.extensions.getExtensions((r) => {
     if (!r || !r.extensions) return;
