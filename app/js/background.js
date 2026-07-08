@@ -268,6 +268,22 @@ const WZH_SCHEMA = [
     type: "text",
     category: "Gameplay",
     default: ""
+  },
+  {
+    key: "autoLaunch",
+    label: "Start with Overwolf",
+    description: "Automatically start this app when the Overwolf client starts.",
+    type: "checkbox",
+    category: "Lifecycle",
+    default: true
+  },
+  {
+    key: "closeOnGameExit",
+    label: "Close on Game Exit",
+    description: "Shut down this app automatically when Call of Duty: Warzone is closed.",
+    type: "checkbox",
+    category: "Lifecycle",
+    default: false
   }
 ];
 
@@ -330,10 +346,20 @@ function initCentralSettings() {
 
           state.centralSettings = {
             wzh_opacity: newOpacity,
-            notifyEnabled: vals.wzh_notify_enabled !== false,
-            notifyPort: parseInt(vals.wzh_notify_port, 10) || 61234,
-            wzh_partycode: newCode
+            notifyEnabled: vals.notifyEnabled !== false,
+            notifyPort: parseInt(vals.notifyPort, 10) || 61234,
+            wzh_partycode: newCode,
+            autoLaunch: vals.autoLaunch !== false,
+            closeOnGameExit: vals.closeOnGameExit === true
           };
+
+          if (vals.autoLaunch !== undefined) {
+            overwolf.settings.setExtensionSettings({ auto_launch_with_overwolf: vals.autoLaunch !== false }, () => {});
+          }
+
+          if (vals.closeOnGameExit !== undefined) {
+            checkAppCloseOnGameExit();
+          }
 
           // If opacity changed, tell all windows
           if (newOpacity !== oldOpacity) {
@@ -365,5 +391,17 @@ function initCentralSettings() {
     });
   });
 }
+
+function checkAppCloseOnGameExit() {
+  const s = state.centralSettings;
+  if (!s || !s.closeOnGameExit) return;
+  overwolf.games.getRunningGameInfo((gameInfo) => {
+    if (!gameInfo || !gameInfo.isRunning) {
+      console.log('[wz-helper] No game running and closeOnGameExit is enabled. Shutting down.');
+      window.close();
+    }
+  });
+}
+overwolf.games.onGameInfoUpdated.addListener(checkAppCloseOnGameExit);
 
 main();
