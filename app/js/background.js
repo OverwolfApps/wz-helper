@@ -235,13 +235,14 @@ function main() {
 const WZH_SCHEMA = [
   {
     key: "wzh_opacity",
-    label: "HUD Opacity (%)",
+    label: "HUD Opacity",
     description: "Adjust opacity/alpha level of the Game Helper overlays.",
     type: "slider",
     category: "HUD",
     min: 20,
     max: 100,
     step: 5,
+    unit: "%",
     default: 90
   },
   {
