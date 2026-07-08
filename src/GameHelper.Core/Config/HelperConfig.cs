@@ -34,6 +34,10 @@ namespace GameHelper.Core.Config
         public int[] GameUdpPorts { get; set; } = Array.Empty<int>();
         public int[] GameUdpPortRangeStart { get; set; } = Array.Empty<int>();
         public int[] GameUdpPortRangeEnd { get; set; } = Array.Empty<int>();
+        /// <summary>Known game-server UDP ports: a peer on one of these that carries real traffic is
+        /// classified as the game server immediately (fast path), even before its throughput ramps
+        /// to the Min threshold. Empty = throughput-only classification.</summary>
+        public int[] GameServerPorts { get; set; } = Array.Empty<int>();
         /// <summary>A UDP peer must persist this many polls before we call it a game server.</summary>
         public int GameServerConfirmPolls { get; set; } = 3;
         /// <summary>Drop a game server after this many polls with no packets/absence.</summary>

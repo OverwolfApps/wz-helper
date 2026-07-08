@@ -35,6 +35,29 @@ function isEnabled(name) { return !disabled.has(name); }
 
 const logEl = document.getElementById('log');
 
+// "Send to Notifications app" toggle — the background window reads these same localStorage keys and
+// POSTs curated events to the Notifications app's HTTP endpoint (shared origin across app windows).
+const openSettingsBtn = document.getElementById('open-settings-btn');
+if (openSettingsBtn) {
+  openSettingsBtn.onclick = () => {
+    overwolf.extensions.getExtensions((r) => {
+      const sm = r.extensions && r.extensions.find(e => e.meta && e.meta.name === 'Settings Manager');
+      if (sm) {
+        overwolf.extensions.launch(sm.id);
+      } else {
+        alert("Settings Manager is not installed!");
+      }
+    });
+  };
+}
+// Retention is PER EVENT TYPE, not one shared cap: keep the last PER_TYPE_MAX rows of each event
+// name so a chatty type (PERF_STATS, PLAYER_CHANGED) can't evict a rare one you filtered down to.
+// Declared up here (not next to pruneRetention) because the startup backfill calls render() ->
+// pruneRetention() before that point — a `const` further down would throw a TDZ error and abort the
+// whole backfill (which is exactly the "only HELPER_STARTED shows" bug). A generous overall cap
+// still bounds total DOM/memory.
+const PER_TYPE_MAX = 100, TOTAL_MAX = 4000;
+
 const opacity = document.getElementById('opacity');
 function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
 opacity.value = parseInt(localStorage.getItem(LS_OPACITY) || '92', 10);
@@ -111,7 +134,12 @@ overwolf.windows.onMessageReceived.addListener((msg) => {
   if (msg.id === 'helper-event') render(msg.content);
   else if (msg.id === 'agent-status') { const h = document.querySelector('header h1'); if (h) h.textContent = msg.content.connected ? '🎯 Game Helper — Log' : '🎯 Game Helper — Log (agent offline)'; }
 });
-try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.events) bg.wzh.events.forEach(render); } catch {}
+try {
+  const bg = overwolf.windows.getMainWindow();
+  const evs = bg && bg.wzh && (bg.wzh.backfill ? bg.wzh.backfill() : bg.wzh.events);
+  console.log(`[log] window loaded; backfilled ${evs ? evs.length : 0} events (backfill=${!!(bg && bg.wzh && bg.wzh.backfill)})`);
+  if (evs) evs.forEach(render);
+} catch (e) { console.error('[log] backfill failed:', e && e.message); }
 
 function flagImg(iso) {
   if (!iso || iso.length !== 2) return '';
@@ -137,7 +165,13 @@ function render(entry) {
     `<div class="name ${NAME_CLASS[name] || ''}">${name}</div>` +
     `<div class="data">${summarize(name, data)}</div>`;
   logEl.prepend(row);
-  while (logEl.children.length > 500) logEl.removeChild(logEl.lastChild);
+  pruneRetention(name);
+}
+
+function pruneRetention(name) {
+  const same = logEl.querySelectorAll(`.row[data-name="${name}"]`);
+  for (let i = same.length - 1; i >= PER_TYPE_MAX; i--) same[i].remove();
+  while (logEl.children.length > TOTAL_MAX) logEl.removeChild(logEl.lastChild);
 }
 
 function summarize(name, d) {
@@ -170,7 +204,10 @@ function summarize(name, d) {
   if (name === 'GAME_STATUS_CHANGED') return d.ok ? 'all OK' : (d.activeIssues!=null ? `${d.activeIssues} issue(s)` : `${d.gameTitle}: ${d.change}`);
   if (name === 'LOG_LINE_ADDED') return (d.level ? `[${d.level}] ` : '') + (d.line ? d.line.slice(0,160) : '');
   if (name === 'LOG_FILE_ADDED' || name === 'LOG_FILE_REMOVED') return d.path || '';
-  if (name === 'MATCH_STATE_CHANGED') return d.inMatch ? '▶ IN MATCH' : '⏹ not in match';
+  if (name === 'MATCH_STATE_CHANGED') {
+    const m = { searching: '🔍 searching', found: '🎯 match found (lobby)', started: '▶ IN MATCH', ended: '⏹ match ended' };
+    return m[d.phase] || (d.inMatch ? '▶ IN MATCH' : '⏹ not in match');
+  }
   if (name === 'GAME_VERSION_CHANGED') {
     const parts = [d.version, d.changelist && ('cl ' + d.changelist), d.epoch && new Date(+d.epoch * 1000).toLocaleDateString()].filter(Boolean).join(' · ');
     return `🏷 ${parts || d.raw || ''}${d.previous ? ' (updated)' : ''}`;

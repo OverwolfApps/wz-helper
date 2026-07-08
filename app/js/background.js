@@ -17,10 +17,13 @@ const state = {
   ws: null,
   connected: false,
   events: [],
+  latest: new Map(),   // name -> most-recent entry; never evicted, so rare state (party code,
+                       // server, match state) survives the ring's FIFO churn for late-opening windows
   reconnectTimer: null,
   gepQueue: [],   // GEP hints captured while the socket is down, flushed on connect
   frameTimer: null,
   frameBusy: false,
+  centralSettings: null,
 };
 window.wzh = state; // UI windows read recent events via overwolf.windows.getMainWindow()
 
@@ -64,8 +67,71 @@ function onHelperEvent(name, data) {
   const entry = { name, data: data.data || data, at: Date.now() };
   state.events.push(entry);
   if (state.events.length > EVENT_BUFFER_MAX) state.events.shift();
+  state.latest.set(name, entry);   // keep the last of every type regardless of ring churn
   broadcast('helper-event', entry);
+  maybeForwardNotification(name, entry.data);
 }
+
+// --- Optional: forward curated events to the shared "Notifications" Overwolf app -----------------
+// When enabled (log window toggle → localStorage), a small curated set of events is POSTed to the
+// Notifications app's local HTTP endpoint as on-screen toasts. Everything still flows to our own
+// windows regardless; this is purely an extra sink. Off by default.
+const NOTIFY_LS_ENABLED = 'wzh_notify_enabled', NOTIFY_LS_PORT = 'wzh_notify_port';
+
+function maybeForwardNotification(name, d) {
+  try {
+    const s = state.centralSettings || {
+      notifyEnabled: localStorage.getItem(NOTIFY_LS_ENABLED) === 'true',
+      notifyPort: parseInt(localStorage.getItem(NOTIFY_LS_PORT) || '61234', 10) || 61234
+    };
+    if (!s.notifyEnabled) return;
+    const n = notificationFor(name, d);
+    if (!n) return;
+    fetch(`http://localhost:${s.notifyPort}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app: 'Game Helper', ...n }),
+    }).catch(() => {});   // Notifications app not running → silently skip
+  } catch {}
+}
+
+// Map a Game Helper event to a notification, or null to skip. Curated to the genuinely
+// notification-worthy, low-frequency events (no per-frame CV / perf spam).
+function notificationFor(name, d) {
+  if (!d) return null;
+  switch (name) {
+    case 'GAME_SERVER_CONNECTED':
+      if (!d.isLikelyVPN) return null;   // only warn on suspicious (VPN/proxied) game servers
+      return { type: 'warning', title: 'VPN/proxied game server',
+        message: [d.city || d.ip, d.pingMs >= 0 ? `${d.pingMs}ms` : '', d.asnOrg].filter(Boolean).join(' · ') };
+    case 'MATCH_STATE_CHANGED':
+      if (d.phase === 'started') return { type: 'success', title: 'Match started', message: '' };
+      if (d.phase === 'ended')   return { type: 'info', title: 'Match ended', message: '' };
+      return null;
+    case 'PARTY_CODE_CHANGED':
+      return d.code ? { type: 'info', title: 'Party code', message: d.code } : null;
+    case 'GAME_STATUS_CHANGED':
+      if (d.change === 'summary' && d.ok === false)
+        return { type: 'warning', title: 'Call of Duty status', message: `${d.activeIssues} active issue${d.activeIssues === 1 ? '' : 's'}` };
+      if (d.change === 'issue_started')
+        return { type: 'warning', title: d.gameTitle || 'CoD status', message: 'Outage reported' };
+      return null;
+    case 'GAME_VERSION_CHANGED':
+      return d.previous ? { type: 'info', title: 'Game updated', message: d.version || d.raw || '' } : null;
+    default:
+      return null;
+  }
+}
+
+// Backfill for late-opening windows: the recent ring (for history/roster deltas) plus the last of
+// every event type that the ring may have already evicted, chronologically ordered. A rare event
+// (e.g. PARTY_CODE_CHANGED) is thus always replayed even if thousands of chatty events buried it.
+function backfill() {
+  const seen = new Set(state.events);
+  const extra = [...state.latest.values()].filter(e => !seen.has(e));
+  return extra.concat(state.events).sort((a, b) => a.at - b.at);
+}
+state.backfill = backfill;
 
 function broadcast(id, content) {
   for (const win of ['log', 'hud', 'in_game', 'players']) {
@@ -155,6 +221,7 @@ function captureAndPush() {
 }
 
 function main() {
+  initCentralSettings();
   connect();
   wireGep();
   startFramePush();
@@ -163,6 +230,113 @@ function main() {
       if (r.status === 'success') overwolf.windows.restore(r.window.id, () => {});
     });
   }
+}
+
+const WZH_SCHEMA = [
+  {
+    key: "wzh_opacity",
+    label: "HUD Opacity (%)",
+    description: "Adjust opacity/alpha level of the Game Helper overlays.",
+    type: "slider",
+    category: "HUD",
+    min: 20,
+    max: 100,
+    step: 5,
+    default: 90
+  },
+  {
+    key: "wzh_notify_enabled",
+    label: "Send Alerts to Notifications App",
+    description: "Forward curated game events (squad connected, match start/end) to the shared Notifications app.",
+    type: "checkbox",
+    category: "Alerts",
+    default: true
+  },
+  {
+    key: "wzh_notify_port",
+    label: "Notifications Service Port",
+    description: "Port where the shared Notifications server is listening.",
+    type: "number",
+    category: "Alerts",
+    default: 61234
+  },
+  {
+    key: "wzh_partycode",
+    label: "Squad Party Code",
+    description: "Your active Warzone lobby/party code.",
+    type: "text",
+    category: "Gameplay",
+    default: ""
+  }
+];
+
+function initCentralSettings() {
+  const appName = "Warzone Helper";
+  const regData = {
+    app: appName,
+    icon: "https://cdn.simpleicons.org/codstatus",
+    settings: WZH_SCHEMA
+  };
+
+  fetch('http://localhost:61235/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(regData)
+  }).catch(() => {});
+
+  overwolf.extensions.getExtensions((r) => {
+    if (!r || !r.extensions) return;
+    const sm = r.extensions.find(e => e.meta && e.meta.name === 'Settings Manager');
+    if (!sm) return;
+
+    const applyData = (infoStr) => {
+      try {
+        const apps = JSON.parse(infoStr);
+        if (apps && apps[appName] && apps[appName].values) {
+          const vals = apps[appName].values;
+          
+          const oldOpacity = state.centralSettings ? state.centralSettings.wzh_opacity : 90;
+          const newOpacity = parseInt(vals.wzh_opacity, 10) || 90;
+
+          const oldCode = state.centralSettings ? state.centralSettings.wzh_partycode : "";
+          const newCode = vals.wzh_partycode || "";
+
+          state.centralSettings = {
+            wzh_opacity: newOpacity,
+            notifyEnabled: vals.wzh_notify_enabled !== false,
+            notifyPort: parseInt(vals.wzh_notify_port, 10) || 61234,
+            wzh_partycode: newCode
+          };
+
+          // If opacity changed, tell all windows
+          if (newOpacity !== oldOpacity) {
+            localStorage.setItem('wzh_opacity', String(newOpacity));
+            for (const w of ['log', 'hud', 'players']) {
+              overwolf.windows.sendMessage(w, 'set-opacity', { v: newOpacity }, () => {});
+            }
+          }
+
+          // If party code changed, tell hud
+          if (newCode !== oldCode) {
+            localStorage.setItem('wzh_partycode', newCode);
+            overwolf.windows.sendMessage('hud', 'set-partycode', { v: newCode }, () => {});
+          }
+        }
+      } catch (err) {
+        console.error('[wzh] failed to parse settings:', err);
+      }
+    };
+
+    overwolf.extensions.getInfo(sm.id, (infoRes) => {
+      if (infoRes && infoRes.status === 'success' && infoRes.info) {
+        applyData(infoRes.info);
+      }
+    });
+
+    overwolf.extensions.registerInfo(sm.id, (infoUpdate) => {
+      if (infoUpdate) applyData(infoUpdate);
+    });
+  });
 }
 
 main();

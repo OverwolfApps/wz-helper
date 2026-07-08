@@ -31,8 +31,9 @@ overwolf.windows.onMessageReceived.addListener((msg) => {
 // Backfill from the background ring buffer on open.
 try {
   const bg = overwolf.windows.getMainWindow();
-  if (bg && bg.wzh && bg.wzh.events) {
-    for (const e of bg.wzh.events) {
+  const evs = bg && bg.wzh && (bg.wzh.backfill ? bg.wzh.backfill() : bg.wzh.events);
+  if (evs) {
+    for (const e of evs) {
       if (e.name === 'PLAYER_JOINED' || e.name === 'PLAYER_CHANGED') players.set(e.data.key, e.data);
       else if (e.name === 'PLAYER_LEFT') players.delete(e.data.key);
     }

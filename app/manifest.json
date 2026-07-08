@@ -69,8 +69,18 @@
       "game_ids": [27860]
     },
     "game_events": [27860],
+    "launch_events": [
+      {
+        "event": "GameLaunch",
+        "event_data": {
+          "game_ids": [27860],
+          "wait_for_stable_launch": true
+        },
+        "start_minimized": true
+      }
+    ],
     "externally_connectable": {
-      "matches": ["ws://127.0.0.1", "http://127.0.0.1", "https://flagcdn.com"]
+      "matches": ["ws://127.0.0.1", "http://127.0.0.1", "http://localhost", "https://flagcdn.com"]
     },
     "protocol_override_domains": {},
     "force_browser": "user"

@@ -25,6 +25,7 @@ namespace GameHelper.Core.Net
         private Func<ISet<int>> _pids;
         private Action<string> _log;
         private volatile bool _available;
+        private volatile bool _stopping;
 
         public bool Available => _available;
 
@@ -32,32 +33,65 @@ namespace GameHelper.Core.Net
         {
             _pids = pidProvider;
             _log = log;
-            try
-            {
-                _session = new TraceEventSession(SessionName)
-                {
-                    StopOnDispose = true
-                };
-                _session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
+            _stopping = false;
+            _thread = new Thread(RunLoop) { IsBackground = true, Name = "wzh-etw" };
+            _thread.Start();
+        }
 
-                _session.Source.Kernel.UdpIpSend += e => Record(e.ProcessID, e.daddr.ToString(), e.dport, e.sport, e.size, true);
-                _session.Source.Kernel.UdpIpRecv += e => Record(e.ProcessID, e.saddr.ToString(), e.sport, e.dport, e.size, false);
-
-                _thread = new Thread(() =>
-                {
-                    try { _session.Source.Process(); }
-                    catch (Exception ex) { _log?.Invoke($"[net] ETW loop ended: {ex.Message}"); }
-                })
-                { IsBackground = true, Name = "wzh-etw" };
-                _thread.Start();
-                _available = true;
-                _log?.Invoke("[net] ETW UDP peer source active.");
-            }
-            catch (Exception ex)
+        /// <summary>
+        /// Owns the kernel session for the whole run: (re)creates it and pumps events, and if the
+        /// pump dies (e.g. HRESULT 0x80071069 when a leftover same-named session from a prior hard-kill
+        /// blocks the bind, or the session is stopped out from under us) it cleans up and retries with
+        /// backoff instead of silently going dark for the rest of the process.
+        /// </summary>
+        private void RunLoop()
+        {
+            int backoffMs = 1000;
+            while (!_stopping)
             {
-                _available = false;
-                _log?.Invoke($"[net] ETW UDP source unavailable ({ex.Message}). Need admin rights.");
-                Dispose();
+                try
+                {
+                    // A kernel session with our name may linger after a crash/hard-kill; stop it so the
+                    // fresh EnableKernelProvider below can bind (otherwise Process() throws 0x80071069).
+                    try
+                    {
+                        if (TraceEventSession.GetActiveSessionNames().Contains(SessionName))
+                        {
+                            using (var stale = new TraceEventSession(SessionName) { StopOnDispose = true }) { }
+                            _log?.Invoke($"[net] ETW: stopped leftover session '{SessionName}'.");
+                        }
+                    }
+                    catch { /* best effort */ }
+
+                    _session = new TraceEventSession(SessionName) { StopOnDispose = true };
+                    _session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
+                    _session.Source.Kernel.UdpIpSend += e => Record(e.ProcessID, e.daddr.ToString(), e.dport, e.sport, e.size, true);
+                    _session.Source.Kernel.UdpIpRecv += e => Record(e.ProcessID, e.saddr.ToString(), e.sport, e.dport, e.size, false);
+
+                    _available = true;
+                    _log?.Invoke("[net] ETW UDP peer source active.");
+                    _session.Source.Process();   // blocks until the session stops or errors
+
+                    // Clean exit (Dispose/Stop) — don't loop.
+                    if (_stopping) break;
+                    _log?.Invoke("[net] ETW loop ended cleanly; restarting.");
+                }
+                catch (Exception ex)
+                {
+                    _available = false;
+                    if (_stopping) break;
+                    _log?.Invoke($"[net] ETW loop ended: {ex.Message}. Retrying in {backoffMs}ms (need admin rights if this persists).");
+                }
+                finally
+                {
+                    try { _session?.Dispose(); } catch { }
+                    _session = null;
+                    _available = false;
+                }
+
+                if (_stopping) break;
+                Thread.Sleep(backoffMs);
+                backoffMs = Math.Min(backoffMs * 2, 15000);   // cap backoff at 15s
             }
         }
 
@@ -99,7 +133,8 @@ namespace GameHelper.Core.Net
 
         public void Dispose()
         {
-            try { _session?.Dispose(); } catch { }
+            _stopping = true;
+            try { _session?.Dispose(); } catch { }   // unblocks Source.Process() in the loop thread
             _session = null;
             _available = false;
         }

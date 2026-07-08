@@ -27,6 +27,10 @@ namespace WarzoneHelper.Game
             GameUdpPorts = new[] { 3074, 3075, 3076, 3077, 3078, 3079, 3478, 4379, 4380 };
             GameUdpPortRangeStart = new[] { 27000 };
             GameUdpPortRangeEnd = new[] { 27031 };
+            // :44998 is the dominant Warzone match-server port across the event logs — treat a peer
+            // there with real traffic as the game server immediately (ephemeral-port servers are
+            // still caught by throughput).
+            GameServerPorts = new[] { 44998 };
 
             // Warzone connects to TWO servers on :44998 per match (back-to-back): a lower-throughput
             // lobby/session server then the actual gameplay server (~15-37 KB/s). We still ANNOUNCE
@@ -34,7 +38,7 @@ namespace WarzoneHelper.Game
             // (>=Min B/s) is classified as the game server that flips the in-match state — the lower
             // one shows as a SERVICE. Tune the split if a real match ever fails to register.
             GameServerTrafficBytesPerSec = 3000;  // announce floor (below this = ignored idle UDP)
-            GameServerMinBytesPerSec = 6000;      // game-server vs service split (>= this = game server).
+            GameServerMinBytesPerSec = 5000;      // game-server vs service split (>= this = game server).
                                                   // Lowered so the real match server is caught every
                                                   // match; lower ones still show as SERVICE. The set-
                                                   // based match state absorbs the lobby+game double.

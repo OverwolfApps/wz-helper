@@ -62,7 +62,8 @@ namespace GameHelper.Core
             _bus.OnEvent += UpdateMatchState;
             // Surface the flag so consumers can see when the agent thinks it's in a match (and why
             // the in-match-only OCR runs).
-            _match.Changed += inMatch => CoreEvents.MatchStateChanged.Emit(_bus, e => e.With("inMatch", inMatch));
+            _match.Changed += (phase, inMatch) => CoreEvents.MatchStateChanged.Emit(_bus, e =>
+                e.With("inMatch", inMatch).With("phase", phase.ToString().ToLowerInvariant()));
 
             // GeoIP (shared)
             _geo = new GeoIpResolver();
@@ -126,30 +127,14 @@ namespace GameHelper.Core
             catch (Exception ex) { _bus.Log($"[ocr] init failed: {ex.Message}"); return new NullOcrEngine(); }
         }
 
-        // Game-server endpoints currently connected. A high-throughput game server is the most
-        // reliable "in a match" signal (far more than GEP/CV); we stay in-match while ANY is
-        // connected so the back-to-back two-server dance doesn't toggle the flag off mid-match.
-        private readonly HashSet<string> _gameServers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
+        // Match phase is driven by the NetworkMonitor from live per-poll throughput (see
+        // NetworkMonitor.UpdateMatchSignal): a real match runs on a single sustained high-traffic
+        // server, so counting one-shot CONNECTED events here can't tell the gameplay server from a
+        // brief lobby relay. We only force a reset when the game process exits.
         private void UpdateMatchState(HelperEvent evt)
         {
-            switch (evt.Name)
-            {
-                case EventNames.GameServerConnected:
-                    lock (_gameServers) { _gameServers.Add(Ep(evt)); _match.Set(_gameServers.Count > 0); }
-                    break;
-                case EventNames.GameServerDisconnected:
-                    lock (_gameServers) { _gameServers.Remove(Ep(evt)); _match.Set(_gameServers.Count > 0); }
-                    break;
-                case EventNames.GameProcessStopped:
-                    lock (_gameServers) { _gameServers.Clear(); _match.Set(false); }  // game closed => not in match
-                    break;
-            }
+            if (evt.Name == EventNames.GameProcessStopped) _match.Reset();  // game closed => searching
         }
-
-        private static string Ep(HelperEvent e) =>
-            $"{(e.Data != null && e.Data.TryGetValue("ip", out var ip) ? ip : null)}:" +
-            $"{(e.Data != null && e.Data.TryGetValue("port", out var p) ? p : null)}";
 
         /// <summary>Feed an externally captured frame (Overwolf in-memory screenshot bytes).</summary>
         public void PushFrame(byte[] imageBytes) => _pushedSource?.Push(imageBytes);

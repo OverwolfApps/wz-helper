@@ -50,9 +50,11 @@ namespace GameHelper.Core.Events
 
         public static readonly EventDef MatchStateChanged = new EventDef(
             EventNames.MatchStateChanged, EventSource.Core,
-            "The agent's derived 'in a match?' flag flipped (currently == connected to a game server). " +
-            "In-match-only CV (health, death, chat, killfeed) runs only while this is true.",
-            F("inMatch", "bool", "true when we believe we're in a match"));
+            "The agent's derived match phase changed. Driven by how many game servers are connected: " +
+            "0=searching, 1=found (pre-game lobby), >=2=started (InMatch), then 2->1=ended (leaving). " +
+            "In-match-only CV (health, death, chat, killfeed) runs only while inMatch is true.",
+            F("inMatch", "bool", "true when we believe we're in a live match (phase == started)"),
+            F("phase", "string", "searching | found | started | ended"));
 
         public static readonly EventDef HelperError = new EventDef(
             EventNames.HelperError, EventSource.Core, "A fatal/notable agent error.",

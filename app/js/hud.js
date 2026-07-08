@@ -36,6 +36,10 @@ function updateCounts() {
   setField(els.squad, String(rosterSquad || listSquad || 0));
 }
 const bar = document.querySelector('.bar');
+// Declared before the first setField() call below — setField() -> resize() reads resizeTimer, and
+// the cached-party-code line runs before this point, so a `let` further down would throw a TDZ
+// "Cannot access 'resizeTimer' before initialization" and abort the whole HUD script on startup.
+let resizeTimer = null;
 
 // Hide every field until it has a value; party code persists across matches.
 Object.values(els).forEach((el) => { if (el) el.closest('.f').style.display = 'none'; });
@@ -58,16 +62,27 @@ function setFieldHtml(el, html) {
   resize();
 }
 
-let resizeTimer = null;
 function resize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (!selfWindowId) return;
-    const w = Math.ceil(bar.scrollWidth) + 4;
-    const h = Math.ceil(bar.scrollHeight) + 4;
-    overwolf.windows.changeSize({ window_id: selfWindowId, width: w, height: h }, () => {});
+    // selfWindowId is fetched async; during the startup backfill burst it may not be set yet.
+    // Reschedule instead of dropping, or the widest content measured during startup is lost and the
+    // window stays too small until some later event happens to widen the bar again.
+    if (!selfWindowId) { resize(); return; }
+    // .bar is width:max-content so it's never clipped by the window; getBoundingClientRect is the
+    // true content width. Buffer covers sub-pixel rounding + DPI scaling so the last field/close
+    // button never gets cut off.
+    const r = bar.getBoundingClientRect();
+    overwolf.windows.changeSize(
+      { window_id: selfWindowId, width: Math.ceil(r.width) + 12, height: Math.ceil(r.height) + 4 }, () => {});
   }, 60);
 }
+// Re-fit whenever the bar's rendered size changes for ANY reason — a field shown/hidden, a value
+// changed, a flag image finishing loading, font metrics settling. This is the catch-all that makes
+// the auto-size reliable regardless of event timing.
+try { new ResizeObserver(() => resize()).observe(bar); } catch {}
+// Fallback for the async flag <img> loads (covered by ResizeObserver too, but harmless).
+document.addEventListener('load', (e) => { if (e.target.tagName === 'IMG') resize(); }, true);
 
 function applyOpacity(v) { document.documentElement.style.setProperty('--bg-alpha', (v/100).toFixed(2)); }
 applyOpacity(parseInt(localStorage.getItem('wzh_opacity') || '90', 10));
@@ -78,14 +93,23 @@ function flagImg(iso) {
 }
 
 // Backfill current state from the background ring buffer (runs after all consts are defined).
-try { const bg = overwolf.windows.getMainWindow(); if (bg && bg.wzh && bg.wzh.events) bg.wzh.events.forEach(e => update(e.name, e.data)); } catch {}
+try {
+  const bg = overwolf.windows.getMainWindow();
+  const evs = bg && bg.wzh && (bg.wzh.backfill ? bg.wzh.backfill() : bg.wzh.events);
+  console.log(`[hud] window loaded; backfilled ${evs ? evs.length : 0} events`);
+  if (evs) evs.forEach(e => update(e.name, e.data));
+} catch (e) { console.error('[hud] backfill failed:', e && e.message); }
 
 function update(name, d) {
   if (!d) return;
   switch (name) {
     case 'GAME_PROCESS_STARTED': setField(els.game, String((d.pids && d.pids[0]) || 'running')); break;
     case 'GAME_PROCESS_STOPPED': setField(els.game, 'closed'); roster.clear(); listSquad = listPlayers = null; updateCounts(); break;
-    case 'MATCH_STATE_CHANGED': setField(els.match, d.inMatch ? 'in match' : 'lobby', d.inMatch ? 'ok' : 'warn'); break;
+    case 'MATCH_STATE_CHANGED': {
+      const label = { searching: 'searching', found: 'lobby', started: 'in match', ended: 'ended' }[d.phase]
+        || (d.inMatch ? 'in match' : 'lobby');
+      setField(els.match, label, d.inMatch ? 'ok' : 'warn'); break;
+    }
     case 'PLAYER_JOINED':
     case 'PLAYER_CHANGED': if (d.key) { roster.set(d.key, d.team); updateCounts(); } break;
     case 'PLAYER_LEFT': if (d.key) { roster.delete(d.key); updateCounts(); } break;

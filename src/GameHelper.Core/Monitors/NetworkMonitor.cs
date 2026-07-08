@@ -83,7 +83,7 @@ namespace GameHelper.Core.Monitors
             try
             {
                 var pids = _proc.CurrentPids();
-                if (pids == null || pids.Count == 0) { SweepAll(); return; }
+                if (pids == null || pids.Count == 0) { SweepAll(); UpdateMatchSignal(); return; }
 
                 var current = new HashSet<string>();
 
@@ -113,8 +113,26 @@ namespace GameHelper.Core.Monitors
                 }
 
                 Sweep(current);
+                UpdateMatchSignal();
             }
             catch (Exception ex) { _bus.Log($"[network] poll error: {ex.Message}"); }
+        }
+
+        // Derive match phase from the LIVE per-poll throughput (not the one-shot CONNECTED event,
+        // which fires before the gameplay server ramps). A real match runs on a single sustained
+        // high-traffic server, so: inMatch = any announced game server is at/above Min throughput
+        // (the gameplay server) OR two+ game servers are connected (the "both signals" rule).
+        private void UpdateMatchSignal()
+        {
+            if (_match == null) return;
+            int total = 0, gameplay = 0;
+            foreach (var t in _tracked.Values)
+            {
+                if (!t.Announced || !t.IsGameServer) continue;
+                total++;
+                if (_cfg.GameServerMinBytesPerSec <= 0 || t.PeakRateBps >= _cfg.GameServerMinBytesPerSec) gameplay++;
+            }
+            _match.Update(total, gameplay >= 1 || total >= 2);
         }
 
         private void Touch(string key, string ip, int port, string proto, bool isGameCandidate, long sent, long recv)
@@ -141,13 +159,15 @@ namespace GameHelper.Core.Monitors
             t.LastTotal = total; t.LastPollUtc = now;
             if (t.RateBps > t.PeakRateBps) t.PeakRateBps = t.RateBps;
 
-            bool isGameByRate = _cfg.GameServerMinBytesPerSec <= 0 || t.PeakRateBps >= _cfg.GameServerMinBytesPerSec;
+            // Game server if throughput crossed the split OR it's on a known game-server port (fast path).
+            bool portHint = _cfg.GameServerPorts != null && Array.IndexOf(_cfg.GameServerPorts, port) >= 0;
+            bool isGame = portHint || _cfg.GameServerMinBytesPerSec <= 0 || t.PeakRateBps >= _cfg.GameServerMinBytesPerSec;
 
             if (t.Announced)
             {
-                // Promote a service to a game server if its throughput has since crossed the split
-                // (a peer that started slow — matchmaking/loading — then became the match server).
-                if (proto == "UDP" && !t.IsGameServer && isGameByRate)
+                // Promote a service to a game server once it qualifies (rate ramped, or we now know
+                // it's on a game-server port).
+                if (proto == "UDP" && !t.IsGameServer && isGame)
                 {
                     t.IsGameServer = true;
                     Announce(t, connected: true);   // re-announce as GAME_SERVER_CONNECTED
@@ -157,17 +177,24 @@ namespace GameHelper.Core.Monitors
 
             if (proto == "UDP" && isGameCandidate)
             {
-                // Announce any candidate that persists and carries real traffic (>= Traffic). Peers at
-                // or above the Min split are the game/match server (they flip in-match); lower-traffic
-                // peers (e.g. the lobby/session server) are still logged, as a SERVICE. matchOk lets a
-                // profile require in-match first (off by default).
+                // Announce a candidate that PERSISTS and either carries real traffic (>= Traffic) or is
+                // on a known game-server port AND carries ANY traffic at all. A port-listed peer
+                // (:44998) counts below the Traffic threshold so the low-traffic pre-game/lobby server
+                // still registers as a game server (needed for the 2-server "match started" phase) —
+                // but it must move real packets (peak > 0). Warzone holds a POOL of :44998 relays that
+                // persist for seconds at exactly 0 kb/s (handshake only, no sustained packets); those
+                // must NOT count or they inflate the server count and fake a match. Peers classified
+                // game (isGame) flip in-match; lower non-port ones still log as a SERVICE. matchOk lets
+                // a profile require in-match first.
                 bool persisted = t.SeenPolls >= _cfg.GameServerConfirmPolls;
-                bool announceOk = _cfg.GameServerTrafficBytesPerSec <= 0 || t.PeakRateBps >= _cfg.GameServerTrafficBytesPerSec;
+                bool announceOk = _cfg.GameServerTrafficBytesPerSec <= 0 ||
+                                  t.PeakRateBps >= _cfg.GameServerTrafficBytesPerSec ||
+                                  (portHint && t.PeakRateBps > 0);
                 bool matchOk = !_cfg.GameServerRequireInMatch || (_match != null && _match.InMatch);
 
                 if (persisted && announceOk && matchOk)
                 {
-                    t.IsGameServer = isGameByRate;
+                    t.IsGameServer = isGame;
                     Announce(t, connected: true);
                 }
             }
