@@ -312,24 +312,6 @@ function initCentralSettings() {
   overwolf.extensions.getExtensions((r) => {
     if (!r || !r.extensions) return;
     const sm = r.extensions.find(e => e.meta && e.meta.name === 'Settings Manager');
-    const notifApp = r.extensions.find(e => e.meta && e.meta.name === 'Notifications');
-
-    if (sm) {
-      overwolf.extensions.getRunningState(sm.id, (stateRes) => {
-        if (stateRes && !stateRes.isRunning) {
-          overwolf.extensions.launch(sm.id, { background: true });
-        }
-      });
-    }
-
-    if (notifApp) {
-      overwolf.extensions.getRunningState(notifApp.id, (stateRes) => {
-        if (stateRes && !stateRes.isRunning) {
-          overwolf.extensions.launch(notifApp.id, { background: true });
-        }
-      });
-    }
-
     if (!sm) return;
 
     const applyData = (infoStr) => {
@@ -352,14 +334,6 @@ function initCentralSettings() {
             autoLaunch: vals.autoLaunch !== false,
             closeOnGameExit: vals.closeOnGameExit === true
           };
-
-          if (vals.autoLaunch !== undefined) {
-            overwolf.settings.setExtensionSettings({ auto_launch_with_overwolf: vals.autoLaunch !== false }, () => {});
-          }
-
-          if (vals.closeOnGameExit !== undefined) {
-            checkAppCloseOnGameExit();
-          }
 
           // If opacity changed, tell all windows
           if (newOpacity !== oldOpacity) {
@@ -392,16 +366,14 @@ function initCentralSettings() {
   });
 }
 
-function checkAppCloseOnGameExit() {
-  const s = state.centralSettings;
-  if (!s || !s.closeOnGameExit) return;
-  overwolf.games.getRunningGameInfo((gameInfo) => {
-    if (!gameInfo || !gameInfo.isRunning) {
-      console.log('[wz-helper] No game running and closeOnGameExit is enabled. Shutting down.');
-      window.close();
-    }
-  });
-}
-overwolf.games.onGameInfoUpdated.addListener(checkAppCloseOnGameExit);
+overwolf.windows.onMessageReceived.addListener((msg) => {
+  if (msg.id === 'shutdown-app') {
+    console.log('[wz-helper] Received shutdown command from Settings Manager.');
+    window.close();
+  } else if (msg.id === 'set-autostart') {
+    console.log('[wz-helper] Received set-autostart command from Settings Manager:', msg.content.enabled);
+    overwolf.settings.setExtensionSettings({ auto_launch_with_overwolf: msg.content.enabled !== false }, () => {});
+  }
+});
 
 main();
