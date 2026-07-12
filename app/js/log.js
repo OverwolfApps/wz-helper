@@ -41,7 +41,7 @@ const openSettingsBtn = document.getElementById('open-settings-btn');
 if (openSettingsBtn) {
   openSettingsBtn.onclick = () => {
     overwolf.extensions.getExtensions((r) => {
-      const sm = r.extensions && r.extensions.find(e => e.meta && e.meta.name === 'Settings Manager');
+      const sm = r.extensions && r.extensions.find(e => e.meta && e.meta.name === 'Settings (API)');
       if (sm) {
         overwolf.extensions.launch(sm.id);
       } else {

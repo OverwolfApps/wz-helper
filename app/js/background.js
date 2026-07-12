@@ -80,17 +80,24 @@ const NOTIFY_LS_ENABLED = 'wzh_notify_enabled', NOTIFY_LS_PORT = 'wzh_notify_por
 
 function maybeForwardNotification(name, d) {
   try {
+    let p = parseInt(localStorage.getItem(NOTIFY_LS_PORT), 10);
+    if (p === 61234) {
+      p = 60234;
+      localStorage.setItem(NOTIFY_LS_PORT, '60234');
+    }
     const s = state.centralSettings || {
-      notifyEnabled: localStorage.getItem(NOTIFY_LS_ENABLED) === 'true',
-      notifyPort: parseInt(localStorage.getItem(NOTIFY_LS_PORT) || '61234', 10) || 61234
+      notifyPort: p || 60234
     };
-    if (!s.notifyEnabled) return;
     const n = notificationFor(name, d);
     if (!n) return;
     fetch(`http://localhost:${s.notifyPort}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app: 'Game Helper', ...n }),
+      body: JSON.stringify({ 
+        app: 'Game Helper', 
+        icon: chrome.runtime.getURL('img/icon_256.png'),
+        ...n 
+      }),
     }).catch(() => {});   // Notifications app not running → silently skip
   } catch {}
 }
@@ -221,7 +228,7 @@ function captureAndPush() {
 }
 
 function main() {
-  initCentralSettings();
+  connectToSettingsManager();
   connect();
   wireGep();
   startFramePush();
@@ -246,20 +253,12 @@ const WZH_SCHEMA = [
     default: 90
   },
   {
-    key: "wzh_notify_enabled",
-    label: "Send Alerts to Notifications App",
-    description: "Forward curated game events (squad connected, match start/end) to the shared Notifications app.",
-    type: "checkbox",
-    category: "Alerts",
-    default: true
-  },
-  {
     key: "wzh_notify_port",
     label: "Notifications Service Port",
     description: "Port where the shared Notifications server is listening.",
     type: "number",
     category: "Alerts",
-    default: 61234
+    default: 60234
   },
   {
     key: "wzh_partycode",
@@ -287,83 +286,71 @@ const WZH_SCHEMA = [
   }
 ];
 
-function initCentralSettings() {
-  const appName = "Warzone Helper";
-  const regData = {
-    app: appName,
-    icon: "https://cdn.simpleicons.org/callofduty",
-    settings: WZH_SCHEMA
-  };
-
-  const register = () => {
-    fetch('http://localhost:61235/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(regData)
-    }).then(res => {
-      if (!res.ok) throw new Error();
-      console.log(`[wz-helper] Registered schema successfully.`);
-    }).catch(() => {
-      setTimeout(register, 3000);
-    });
-  };
-  register();
-
-  overwolf.extensions.getExtensions((r) => {
-    if (!r || !r.extensions) return;
-    const sm = r.extensions.find(e => e.meta && e.meta.name === 'Settings Manager');
-    if (!sm) return;
-
-    const applyData = (infoStr) => {
-      try {
-        const apps = JSON.parse(infoStr);
-        if (apps && apps[appName] && apps[appName].values) {
-          const vals = apps[appName].values;
-          
-          const oldOpacity = state.centralSettings ? state.centralSettings.wzh_opacity : 90;
-          const newOpacity = parseInt(vals.wzh_opacity, 10) || 90;
-
-          const oldCode = state.centralSettings ? state.centralSettings.wzh_partycode : "";
-          const newCode = vals.wzh_partycode || "";
-
-          state.centralSettings = {
-            wzh_opacity: newOpacity,
-            notifyEnabled: vals.notifyEnabled !== false,
-            notifyPort: parseInt(vals.notifyPort, 10) || 61234,
-            wzh_partycode: newCode,
-            autoLaunch: vals.autoLaunch !== false,
-            closeOnGameExit: vals.closeOnGameExit === true
-          };
-
-          // If opacity changed, tell all windows
-          if (newOpacity !== oldOpacity) {
-            localStorage.setItem('wzh_opacity', String(newOpacity));
-            for (const w of ['log', 'hud', 'players']) {
-              overwolf.windows.sendMessage(w, 'set-opacity', { v: newOpacity }, () => {});
-            }
+function connectToSettingsManager() {
+  const appName = 'Warzone Helper';
+  let smWs = null;
+  const _connect = () => {
+    try {
+      smWs = new WebSocket('ws://127.0.0.1:60236');
+      smWs.onopen = () => {
+        console.log('[wz-helper] Connected to Settings Manager WebSocket.');
+        smWs.send(JSON.stringify({ event: 'register', app: appName, icon: 'img/icon_256.png', settings: WZH_SCHEMA }));
+      };
+      smWs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data && data.event === 'settings-changed' && data.app === appName) {
+            console.log('[wz-helper] WS Settings update received:', JSON.stringify(data.values));
+            applySettingsUpdate(data.values);
           }
-
-          // If party code changed, tell hud
-          if (newCode !== oldCode) {
-            localStorage.setItem('wzh_partycode', newCode);
-            overwolf.windows.sendMessage('hud', 'set-partycode', { v: newCode }, () => {});
-          }
+        } catch (e) {
+          console.error('[wz-helper] Error parsing WS message:', e);
         }
-      } catch (err) {
-        console.error('[wzh] failed to parse settings:', err);
-      }
-    };
+      };
+      smWs.onclose = () => {
+        console.warn('[wz-helper] Settings Manager WS disconnected. Reconnecting in 5s...');
+        setTimeout(_connect, 5000);
+      };
+      smWs.onerror = () => {
+        if (smWs) smWs.close();
+      };
+    } catch (err) {
+      console.error('[wz-helper] failed to connect to Settings Manager WS:', err);
+      setTimeout(_connect, 5000);
+    }
+  };
+  _connect();
+}
 
-    overwolf.extensions.getInfo(sm.id, (infoRes) => {
-      if (infoRes && infoRes.status === 'success' && infoRes.info) {
-        applyData(infoRes.info);
-      }
-    });
+function applySettingsUpdate(vals) {
+  if (!vals) return;
+  const oldOpacity = state.centralSettings ? state.centralSettings.wzh_opacity : 90;
+  const newOpacity = parseInt(vals.wzh_opacity, 10) || 90;
 
-    overwolf.extensions.registerInfo(sm.id, (infoUpdate) => {
-      if (infoUpdate) applyData(infoUpdate);
-    });
-  });
+  const oldCode = state.centralSettings ? state.centralSettings.wzh_partycode : "";
+  const newCode = vals.wzh_partycode || "";
+
+  state.centralSettings = {
+    wzh_opacity: newOpacity,
+    notifyPort: parseInt(vals.wzh_notify_port || vals.notifyPort, 10) || 60234,
+    wzh_partycode: newCode,
+    autoLaunch: vals.autoLaunch !== false,
+    closeOnGameExit: vals.closeOnGameExit === true
+  };
+
+  // If opacity changed, tell all windows
+  if (newOpacity !== oldOpacity) {
+    localStorage.setItem('wzh_opacity', String(newOpacity));
+    for (const w of ['log', 'hud', 'players']) {
+      overwolf.windows.sendMessage(w, 'set-opacity', { v: newOpacity }, () => {});
+    }
+  }
+
+  // If party code changed, tell hud
+  if (newCode !== oldCode) {
+    localStorage.setItem('wzh_partycode', newCode);
+    overwolf.windows.sendMessage('hud', 'set-partycode', { v: newCode }, () => {});
+  }
 }
 
 overwolf.windows.onMessageReceived.addListener((msg) => {
